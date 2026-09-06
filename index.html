@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101211">
+  <title>From microservices to microcells — An architecture proposal</title>
+  <meta name="description" content="A practical architecture proposal for moving from service fleets to durable workflows and bounded execution. Correctness, external effects, versioning, and a migration plan.">
+  <meta property="og:title" content="From microservices to microcells">
+  <meta property="og:description" content="Transient compute. Durable responsibility. A grounded proposal for the next unit of software.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://zozo123.github.io/microservices-to-microcells/">
+  <link rel="canonical" href="https://zozo123.github.io/microservices-to-microcells/">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="assets/app.js" defer></script>
+</head>
+<body>
+  <a href="#proposal" class="skip-link">Skip to the writeup</a>
+  <header class="site-header">
+    <a class="wordmark" href="#top" aria-label="Microcells, back to top"><svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><rect x="1" y="1" width="9" height="9" rx="2"/><rect x="16" y="1" width="9" height="9" rx="2"/><rect x="1" y="16" width="9" height="9" rx="2"/><rect x="16" y="16" width="9" height="9" rx="2"/></svg> microcells<span class="wordmark-dot">.</span></a>
+    <nav aria-label="Main navigation"><a href="#proposal">The idea</a><a href="#architecture">Architecture</a><a href="#walkthrough">In motion</a><a href="#migration">Migration</a></nav>
+    <a class="github-link" href="https://github.com/zozo123/microservices-to-microcells">GitHub <span aria-hidden="true">↗</span></a>
+  </header>
+
+  <main id="top">
+    <section class="hero" aria-labelledby="page-title">
+      <div class="hero-eyebrow"><span class="status-dot"></span> AN ARCHITECTURE PROPOSAL <span class="edition">01 / SEPTEMBER 2026</span></div>
+      <div class="hero-grid">
+        <div class="hero-copy">
+          <h1 id="page-title">From<br>microservices<br><span class="title-to">to</span> <span class="accent">microcells.</span></h1>
+          <p class="hero-deck">Make compute transient.<br>Keep responsibility durable.</p>
+          <p class="hero-description">Move business behavior into versioned, bounded tasks. Keep workflows, facts, and external effects explicit.</p>
+          <div class="hero-actions"><a class="button" href="#proposal">Read the proposal <span class="button-icon" aria-hidden="true">↓</span></a><a class="text-link" href="#migration">Explore the migration <span aria-hidden="true">↗</span></a></div>
+        </div>
+        <div class="diagram-shell">
+          <figure class="hero-diagram" aria-labelledby="diagram-title">
+            <figcaption id="diagram-title"><span class="mono">THE UNIT OF WORK</span><span class="mini-tag">CONCEPTUAL MODEL</span></figcaption>
+            <div class="diagram-route"><span>Intent</span><span class="route-line" aria-hidden="true"></span><span>Durable workflow</span></div>
+            <div class="workflow-track"><span class="track-point"></span><span class="track-line"></span><span class="track-point current"></span><span class="track-line"></span><span class="track-point"></span></div>
+            <div class="cell-row"><div class="cell-box past"><span class="mono">01 / EVALUATE</span><span class="cell-symbol">✓</span><span>Result recorded</span></div><div class="cell-box current"><span class="mono">02 / PROPOSE</span><span class="cell-symbol">⋮</span><span>Bounded attempt</span></div><div class="cell-box future"><span class="mono">03 / CONTINUE</span><span class="cell-symbol">·</span><span>Waiting</span></div></div>
+            <div class="commit-line"><span aria-hidden="true">↓</span><span>Validate inside the transaction</span><span aria-hidden="true">↓</span></div>
+            <div class="state-bar"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 4 16 4 16 0V5M4 12c0 4 16 4 16 0"/></svg><div><strong>Authoritative state</strong><span>Facts · progress · effect intents</span></div><span class="lock-badge">DURABLE</span></div>
+            <div class="effect-line"><span class="mono">COMMITTED INTENT</span><span aria-hidden="true">→</span><span>Broker</span><span aria-hidden="true">→</span><span>Provider</span></div>
+            <p class="diagram-note">The attempt ends.<br><strong>The journey continues.</strong></p>
+          </figure>
+        </div>
+      </div>
+      <div class="hero-footer"><span>IMMUTABLE TEMPLATES</span><span class="footer-plus">+</span><span>DURABLE WORKFLOWS</span><span class="footer-plus">+</span><span>EXPLICIT STATE AUTHORITY</span></div>
+    </section>
+
+    <div class="thesis-band"><span class="mono">THE SHIFT</span><p>From operating a listener for every capability<br>to publishing behavior on a shared execution platform.</p><span class="band-arrow" aria-hidden="true">↘</span></div>
+
+    <div class="reading-layout" id="proposal">
+      <aside class="contents" aria-label="Contents">
+        <div class="contents-inner"><span class="mono contents-label">IN THIS WRITEUP</span><nav aria-label="Article sections"><a href="#introduction"><span>00</span>The proposal</a>
+<a href="#deployment-unit"><span>01</span>The deployment unit</a>
+<a href="#objects"><span>02</span>Seven objects</a>
+<a href="#architecture"><span>03</span>Eight responsibilities</a>
+<a href="#correctness"><span>04</span>The commit boundary</a>
+<a href="#refund"><span>05</span>The refund journey</a>
+<a href="#durability"><span>06</span>Durable execution</a>
+<a href="#releases"><span>07</span>Versioned releases</a>
+<a href="#failures"><span>08</span>Failure paths</a>
+<a href="#migration"><span>09</span>The migration</a>
+<a href="#operations"><span>10</span>Operating the platform</a>
+<a href="#fit"><span>11</span>Where it fits</a>
+<a href="#sources"><span>12</span>Sources & boundaries</a></nav><div class="contents-foot"><span>16 MIN READ</span><a href="essay.md" download>Download the writeup <span aria-hidden="true">↓</span></a></div></div>
+      </aside>
+      <article class="article">
+        <div class="intro-tag"><span class="status-dot"></span> PROPOSED MODEL · GROUNDED MECHANISMS</div>
+        <section class="article-section" id="introduction"><h2>A software architecture for the durable-execution era</h2><p>Microservices made independent deployment and clear domain ownership practical. At scale, they can also make a simple business change depend on many services, network contracts, queues, and release schedules. When that coordination costs more than the autonomy it buys, we should reconsider the unit we deploy.</p>
+<p>This essay proposes <strong>microcells</strong>: bounded executions of immutable task templates, coordinated by durable workflows, with explicit state authority and recorded effects. Teams publish behavior; a shared execution platform supplies capacity, records progress, and recovers unfinished work. A cell may disappear while the business journey survives.</p>
+<p>The proposal combines established ideas from durable execution, transaction processing, capability security, and event-driven integration. The word <em>microcell</em> names this particular composition; it is not presented as an established industry standard or a new distributed-systems guarantee. It is also distinct from <strong>cell-based architecture</strong>, where a cell is an independently isolated partition of a service and its data. A microcell execution platform can itself be partitioned into those larger isolation cells. <a class="citation" href="#source-1" aria-label="Source 1">[1]</a></p>
+<p>The objective is to reduce the standing topology that domain teams must manage while preserving correctness, ownership, and release autonomy. The platform still runs a fleet. Some domain services should remain services.</p></section>
+<section class="article-section" id="deployment-unit"><span class="section-number">01</span><h2>Change the unit of deployment</h2><p>A microservice combines a domain contract, a deployment unit, and a running network endpoint. Those boundaries sometimes align well. They sometimes force small pieces of business behavior to acquire a server, scaling policy, client SDK, and on-call surface of their own.</p>
+<p>In the proposed model, a <strong>template</strong> is the unit of release, a <strong>workflow</strong> is the unit of business coordination, and a <strong>cell</strong> is one bounded execution attempt. A <strong>journey</strong> is one durable instance of a workflow. An execution platform restores or starts compute when a step is ready, supplies a scoped context, and durably accepts its result before releasing that compute.</p>
+<p>This changes the domain programming model. It does not remove scheduling, queues, capacity planning, schema evolution, or network failure. These responsibilities move into reusable platform mechanisms. A bad implementation merely replaces a service mesh with a central bottleneck.</p>
+<div class="table-wrap" role="region" tabindex="0" aria-label="The deployment unit table"><table>
+<thead>
+<tr>
+<th>Concern</th>
+<th>Typical service fleet</th>
+<th>Proposed microcell model</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Business release</td>
+<td>Deploy a service version</td>
+<td>Publish a template digest; admit journeys on a compatible workflow version</td>
+</tr>
+<tr>
+<td>Coordination</td>
+<td>APIs, events, and orchestration distributed across services</td>
+<td>Explicit durable workflow, with recorded transitions</td>
+</tr>
+<tr>
+<td>Execution</td>
+<td>Long-lived replicas</td>
+<td>Bounded attempts on pooled platform workers</td>
+</tr>
+<tr>
+<td>State ownership</td>
+<td>Usually a service or domain owns its data</td>
+<td>A domain still owns each fact family and its commit contract</td>
+</tr>
+<tr>
+<td>Failure recovery</td>
+<td>Service-specific retries and recovery logic</td>
+<td>Platform recovery plus domain-defined failure and reconciliation behavior</td>
+</tr>
+<tr>
+<td>Operations</td>
+<td>Service and infrastructure health</td>
+<td>Journey outcomes, effect status, contention, and platform health</td>
+</tr>
+</tbody>
+</table></div>
+<p>This is an option for coordination-heavy mutation paths, not a reason to split a cohesive function into twenty remote tasks.</p></section>
+<section class="article-section" id="objects"><span class="section-number">02</span><h2>Seven objects, one execution contract</h2><p>The vocabulary should be small enough to implement and precise enough to audit.</p>
+<div class="table-wrap" role="region" tabindex="0" aria-label="Seven objects table"><table>
+<thead>
+<tr>
+<th>Object</th>
+<th>Definition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Template</strong></td>
+<td>An immutable artifact containing code, runtime requirements, typed inputs and outputs, permitted reads and writes, effect capabilities, resource limits, and invariant references. A snapshot is one packaging option.</td>
+</tr>
+<tr>
+<td><strong>Catalog</strong></td>
+<td>The versioned registry of artifacts and eligible routes. A routing decision resolves to an exact digest and is recorded before dispatch.</td>
+</tr>
+<tr>
+<td><strong>Workflow</strong></td>
+<td>A versioned description or program for steps, branches, waits, timers, retries, and failure paths. Its durable history records decisions and completed work.</td>
+</tr>
+<tr>
+<td><strong>ContextID</strong></td>
+<td>The stable identity of a logical step occurrence, including its journey and loop or fan-out position. Retries keep this identity; attempts have separate IDs. Authorization comes from scoped capabilities, not from an unguessable ID alone.</td>
+</tr>
+<tr>
+<td><strong>Cell</strong></td>
+<td>A bounded execution attempt, isolated according to its trust requirements. It receives declared facts and capabilities and returns a proposal. It has no independently discoverable domain endpoint.</td>
+</tr>
+<tr>
+<td><strong>Constitution</strong></td>
+<td>Versioned policy for admission, capabilities, budgets, rollout, retention, and commit rules. Domain owners define business invariants; the platform enforces the agreed contracts.</td>
+</tr>
+<tr>
+<td><strong>Ledger</strong></td>
+<td>A logical record of committed facts, workflow progress, effect intents, and receipt references. It may use partitioned transactional stores and a separate evidence archive; it need not be one global database.</td>
+</tr>
+</tbody>
+</table></div>
+<p>The <strong>Factory</strong> is the execution subsystem around these objects: dispatch, isolation, capacity, leases, retry scheduling, and durable result handoff. It implements execution policy without embedding refund, risk, or shipping decisions.</p>
+<p>A microVM, container, process, or language sandbox may host a cell. Fresh processes are not a prerequisite for durable execution. Warm workers can execute logically isolated tasks, provided isolation, cleanup, and identity remain correct. Snapshot restore has real constraints: credentials, randomness, connections, and other unique runtime state may require reinitialization. <a class="citation" href="#source-8" aria-label="Source 8">[8]</a></p></section>
+<section class="article-section" id="architecture"><span class="section-number">03</span><h2>Eight responsibilities, explicit boundaries</h2><p>These are logical responsibilities, not a requirement for eight independently deployed services.</p>
+<div class="table-wrap" role="region" tabindex="0" aria-label="Eight responsibilities table"><table>
+<thead>
+<tr>
+<th>Plane</th>
+<th>Responsibility</th>
+<th>What stays durable</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Experience</td>
+<td>UI, public APIs, partner protocols</td>
+<td>Public contracts and connection handling</td>
+</tr>
+<tr>
+<td>Admission</td>
+<td>Authenticate, authorize, deduplicate, accept journeys</td>
+<td>Accepted request, payload identity, journey ID</td>
+</tr>
+<tr>
+<td>Query</td>
+<td>Read authoritative state or materialized views</td>
+<td>Read models and declared consistency guarantees</td>
+</tr>
+<tr>
+<td>Control</td>
+<td>Resolve versions; schedule, resume, and govern workflows</td>
+<td>Workflow history, decisions, timers, policy versions</td>
+</tr>
+<tr>
+<td>Execution</td>
+<td>Run bounded attempts and persist their results</td>
+<td>Durable handoff and task ownership; compute is replaceable</td>
+</tr>
+<tr>
+<td>State</td>
+<td>Enforce data ownership, concurrency control, and commit rules</td>
+<td>Authoritative records, versions, and transactional changes</td>
+</tr>
+<tr>
+<td>Integration</td>
+<td>Execute external effects through governed adapters</td>
+<td>Effect IDs, requests, provider references, outcomes</td>
+</tr>
+<tr>
+<td>Evidence</td>
+<td>Support investigation, provenance, and replay</td>
+<td>Receipts and retained execution history</td>
+</tr>
+</tbody>
+</table></div>
+<p>An ordinary query need not start a durable journey. It still consumes compute, and a projection can be stale. Specify whether a read is strongly consistent, eventually consistent, or waits for a known commit watermark. Queries that require substantial computation can use tasks when that is useful.</p>
+<p>The control and execution infrastructure should be regional or partitioned where failure isolation requires it. Brokers are logical adapter contracts backed by replicated, partitionable workers; they are not single global processes. A common policy model does not require a single failure domain. <a class="citation" href="#source-1" aria-label="Source 1">[1]</a></p></section>
+<section class="article-section" id="correctness"><span class="section-number">04</span><h2>Correctness lives at the commit boundary</h2><p>A cell reads an identified state version and computes a proposed change. The state authority checks permissions, schema, read dependencies, write conflicts, and business invariants <strong>inside the transaction that commits the change</strong>. Checking an invariant earlier in a coordinator and writing later leaves a race.</p>
+<p>Copy-on-write branches are an optional implementation technique. They do not supply serializable transactions or safe merging by themselves. Depending on the storage engine and invariant, use serializable transactions, conditional updates, compare-and-swap, or deliberate serialization by business key. Predicate reads and write skew matter; protecting only the rows written is insufficient for some invariants. Conflicts may require a fresh read and re-execution. <a class="citation" href="#source-2" aria-label="Source 2">[2]</a></p>
+<p>Within one transaction boundary, commit the business delta, a durable completion marker or idempotent commit record for the context, any outgoing effect intent, and a receipt record or reference together. If the workflow engine and application database are separate, bridge them with a transactional outbox and an idempotent consumer. A lost acknowledgment can then be recovered by checking the commit record. Do not claim a cross-system atomic commit simply because both systems are durable. <a class="citation" href="#source-3" aria-label="Source 3">[3]</a></p>
+<p>The evidence archive may receive full receipts asynchronously from this durable record. A signature or hash provides integrity and provenance under its trust assumptions. It does not prove the business decision was correct. Ordinary invariant checking is validation; formal proof requires a specification and a verification method.</p>
+<p>Domain ownership survives this design. A shared state platform must not become unrestricted shared-table access. Each fact family needs an owner, authorized writers, schema policy, and invariant boundary. Work across independent databases still needs a protocol such as a saga, reservations, reconciliation, or an explicitly supported distributed transaction. <a class="citation" href="#source-4" aria-label="Source 4">[4]</a></p></section>
+<section class="walkthrough" id="walkthrough" aria-labelledby="walkthrough-title">
+  <span class="eyebrow">FOLLOW THE FACTS</span>
+  <h2 id="walkthrough-title">One refund.<br>Six durable transitions.</h2>
+  <p>Trace a $30 refund from a $100 capture. Change the scenario to see what survives a crash or an uncertain provider response.</p>
+  <div class="simulation-shell"><div class="simulation">
+    <div class="simulation-top"><label for="scenario">Scenario</label><select id="scenario"><option value="happy">Successful refund</option><option value="timeout">Provider timeout</option><option value="crash">Lost commit acknowledgment</option><option value="conflict">Concurrent refund conflict</option></select><span class="mini-tag">ILLUSTRATIVE</span></div>
+    <ol class="sim-steps" aria-label="Refund transitions">
+      <li><button type="button" data-step="0" aria-current="step"><span>01</span>Admit</button></li><li><button type="button" data-step="1"><span>02</span>Reserve</button></li><li><button type="button" data-step="2"><span>03</span>Dispatch</button></li><li><button type="button" data-step="3"><span>04</span>Resolve</button></li><li><button type="button" data-step="4"><span>05</span>Finalize</button></li><li><button type="button" data-step="5"><span>06</span>Notify</button></li>
+    </ol>
+    <div class="sim-result" aria-live="polite" aria-atomic="true"><div class="sim-state"><span class="mono" id="sim-label">ADMISSION COMMITTED</span><h3 id="sim-title">A request becomes a journey.</h3><p id="sim-description">The request key and payload identity are recorded. Repeating this request returns the same journey instead of creating a second refund.</p><div class="sim-receipt"><span class="mono">DURABLE RECORD</span><code id="sim-record">journey: refund-042 · version: v12</code></div></div><dl class="sim-balances"><div><dt>Capture</dt><dd id="sim-capture">$100</dd></div><div><dt>Reserved</dt><dd id="sim-reserved">$0</dd></div><div><dt>Refunded</dt><dd id="sim-refunded">$0</dd></div><div class="sim-provider"><dt>Provider outcome</dt><dd id="sim-provider">Not submitted</dd></div></dl></div>
+    <div class="simulation-bottom"><span id="sim-progress">Step 1 of 6</span><div><button type="button" class="sim-reset" id="sim-reset">Reset</button><button type="button" class="sim-next" id="sim-next">Next transition <span aria-hidden="true">→</span></button></div></div>
+  </div></div>
+  <p class="simulation-footnote">A teaching model, not a payment processor. A committed intent and a remote refund are separate transactions.</p>
+  <noscript><p>The complete six-step flow appears immediately below. Enable JavaScript to explore the failure scenarios interactively.</p></noscript>
+</section>
+
+<section class="article-section" id="refund"><span class="section-number">05</span><h2>A refund, from intent to evidence</h2><p>Consider a request to refund $30 from a $100 capture. There are no previous refunds or active reservations. The useful invariant is:</p>
+<pre><code class="language-text">completed_refunds + active_refund_reservations &lt;= captured_amount
+</code></pre>
+<p>Require a positive requested amount, use integer minor units, and validate that the currency matches the capture. A captured-payment refund is different from releasing an authorization hold. Eligibility and provider rules remain domain-specific.</p>
+<ol>
+<li><strong>Admit the intent.</strong> Authenticate and authorize the caller. Store the idempotency key with its scope and canonical payload hash. A duplicate with the same payload returns the existing journey; the same key with a different payload is rejected. Pin the workflow version and record its template bindings.</li>
+<li><strong>Evaluate and reserve.</strong> A cell computes eligibility and a proposed $30 reservation. The authoritative transaction validates the current capture, existing refunds, and reservations; it then records the reservation, context commit record, and a payment effect intent together. Competing refunds cannot both spend the same remaining amount.</li>
+<li><strong>Dispatch the effect.</strong> An outbox worker invokes the payment broker after that transaction commits. It uses a stable effect ID and the provider's idempotency mechanism. Retries reuse the same logical operation identity and payload.</li>
+<li><strong>Resolve the provider outcome.</strong> A confirmed success records the provider reference. A definitive rejection records failure. A pending result stays pending. A timeout is <strong>unknown</strong>, because the provider may already have processed the refund. Retain the reservation for pending or unknown operations and reconcile using the provider's status API, verified webhook, or supported idempotent retry contract. <a class="citation" href="#source-10" aria-label="Source 10">[10]</a></li>
+<li><strong>Finalize the facts.</strong> On confirmed success, atomically convert the reservation into a completed refund and checkpoint that transition. On definitive failure, release the reservation according to policy. A local commit failure after provider success retries finalization; it does not start another refund.</li>
+<li><strong>Notify and conclude.</strong> Emit notification intent after finalization. Treat notification delivery separately from financial completion. An email failure must not repeat the payment operation. Return completion or a durable accepted status according to the API's synchronous boundary.</li>
+</ol>
+<p>Provider idempotency is conditional: its key scope, retention window, request matching, and failure behavior matter. Stripe, for example, documents specific replay and retention behavior; this is not an unlimited exactly-once guarantee. If the provider cannot deduplicate or report the outcome, some ambiguous operations need reconciliation or human resolution. <a class="citation" href="#source-5" aria-label="Source 5">[5]</a></p>
+<p>Do not perform a refund first and assume dropping a local state branch can undo it. Idempotency prevents some duplicate effects; it does not make an external effect atomic with a local transaction.</p></section>
+<section class="article-section" id="durability"><span class="section-number">06</span><h2>Durable execution, stated precisely</h2><p>The achievable default is <strong>retryable execution with durable progress and deduplicated commits</strong>. Attempts may execute more than once. Whether the business effect happens once depends on every boundary involved.</p>
+<p>Deterministic workflow replay reconstructs decisions from recorded history. External I/O, clocks, random values, and other nondeterministic results must be recorded or accessed through the runtime's supported mechanisms. Re-running an artifact with the same digest and input does not by itself reproduce a live world that has changed. <a class="citation" href="#source-6" aria-label="Source 6">[6]</a></p>
+<p>Separate three operations: recovering an interrupted journey, replaying recorded decisions, and re-executing domain code in a sandbox for investigation. Historical replay must use recorded external results and must not send real effects again. Some activity or task code can be nondeterministic; the runtime must durably capture its result and handle retries according to the effect contract.</p>
+<p>Keep a context's identity stable while distinguishing its attempts. On conflict, a new attempt may read a later state version and produce a different proposal. If that changes a proposed external operation, validate its payload identity before reusing an effect key. Reject stale worker results with leases plus fencing or equivalent conditional ownership checks. Deduplicate commits even if an attempt continues after its lease expires.</p>
+<p>Temporal, Restate, and DBOS illustrate related durable-execution approaches with different programming models and boundaries. They are implementation options to evaluate, not evidence that every guarantee in this proposed architecture comes for free. <a class="citation" href="#source-6" aria-label="Source 6">[6]</a><a class="citation" href="#source-7" aria-label="Source 7">[7]</a><a class="citation" href="#source-9" aria-label="Source 9">[9]</a></p></section>
+<section class="article-section" id="releases"><span class="section-number">07</span><h2>Release behavior through versioned routes</h2><p>Build an immutable template, check its contracts and fixtures, scan and sign its artifact, and register it as a candidate. A workflow release resolves a compatible set of template digests. Admission can then assign a stable cohort of new journeys to that release.</p>
+<pre><code class="language-yaml"># Illustrative policy — not a product configuration API
+workflow: refund.partial
+stable: workflow-v12
+candidate: workflow-v13
+candidate_weight: 5%
+cohort_key: tenant_id
+bindings:
+  evaluate: refund.evaluate@sha256:&lt;digest&gt;
+  finalize: refund.finalize@sha256:&lt;digest&gt;
+</code></pre>
+<p>Persist the selected workflow and bindings before dispatch. In-flight journeys retain their version set unless an explicit, recorded migration moves them. Durable-engine history compatibility and worker-version retention must be supported; arbitrary edits to replayed workflow code can be unsafe. <a class="citation" href="#source-6" aria-label="Source 6">[6]</a></p>
+<p>Promotion uses journey completion, invariant failures, effect reconciliation backlog, latency, cost, and domain outcomes. A route rollback changes admission for future work. It does not reverse committed facts, cancel a provider operation, repair a schema migration, or remove unfinished journeys. Dangerous versions may need revocation, commit-time fencing, quarantine, and a repair workflow.</p>
+<p>Workers, brokers, schemas, and the platform still have deployments and capacity changes. A pointer can remove much of the domain release choreography without making operations disappear.</p>
+<p>Cross-team composition is still contract work. Schema compatibility can catch structural mismatches; it cannot establish that two steps agree on currency, business meaning, authorization, or failure semantics. Journey tests, owners, and compatibility policies remain necessary.</p></section>
+<section class="article-section" id="failures"><span class="section-number">08</span><h2>Design the failure paths first</h2><div class="table-wrap" role="region" tabindex="0" aria-label="Failure paths table"><table>
+<thead>
+<tr>
+<th>Failure</th>
+<th>Required behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cell crashes before a durable result</td>
+<td>Retry the logical context with a new attempt ID; fence stale attempts.</td>
+</tr>
+<tr>
+<td>Commit succeeds; acknowledgment is lost</td>
+<td>Read the context's commit record and return the prior outcome.</td>
+</tr>
+<tr>
+<td>Concurrent mutation invalidates a read</td>
+<td>Abort or serialize; re-read and recompute within the invariant's transaction boundary.</td>
+</tr>
+<tr>
+<td>Invariant fails</td>
+<td>Reject the proposal and record the reason. Already committed earlier steps may still require business recovery.</td>
+</tr>
+<tr>
+<td>Provider times out</td>
+<td>Mark the effect unknown; preserve its identity and reconcile. Do not assume failure.</td>
+</tr>
+<tr>
+<td>Evidence archive is unavailable</td>
+<td>Preserve the durable receipt record or outbox entry; export later under the defined retention and availability policy.</td>
+</tr>
+<tr>
+<td>Bad release</td>
+<td>Stop new admissions to it; assess in-flight work and committed effects; repair explicitly.</td>
+</tr>
+<tr>
+<td>Poison input</td>
+<td>Quarantine with a bounded retry budget and an owner. Build a redacted reproduction fixture where retention permits.</td>
+</tr>
+<tr>
+<td>Platform partition or outage</td>
+<td>Use documented admission, consistency, recovery, and regional failover rules; prevent competing writers.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Transient compute narrows some process-level failure domains. Shared queues, hot keys, state stores, catalogs, and integration providers create others. Partition capacity and quotas by tenant or workload, use backpressure, and test restore and failover. Do not promise uninterrupted global writes and a single strong ordering through arbitrary network partitions.</p></section>
+<section class="article-section" id="migration"><span class="section-number">09</span><h2>Migrate one journey at a time</h2><p>The migration unit is a business journey and its write authority. Repackaging a service as a task without deciding who can commit its data is not a migration plan. Follow an incremental replacement strategy: keep the working system available while bounded parts move behind a controlled routing boundary. <a class="citation" href="#source-11" aria-label="Source 11">[11]</a></p>
+<p><strong>Stage 0 · Establish a baseline.</strong> Choose a bounded, observable mutation path with a stable owner and recoverable effects. Map its writers, reads, invariants, provider operations, and failure states. Measure completion time, support burden, retry rate, cost, and change lead time. Keep stable read paths in place.</p>
+<p><strong>Stage 1 · Add durability around the existing path.</strong> Introduce journey identity, admission deduplication, durable progress, and an effect journal. Existing services may remain authoritative writers behind adapters. Extract an integration contract where duplication creates real risk; do not make a company-wide broker migration a prerequisite.</p>
+<p><strong>Stage 2 · Extract one bounded decision.</strong> Package cohesive domain logic as a template. Start with recorded fixtures and read-only inputs. Keep transactional checks with the state owner. Define identity, deadlines, retries, fencing, and effect contracts before moving writes.</p>
+<p><strong>Stage 3 · Shadow without effects.</strong> Run the candidate on recorded or aligned inputs using read-only state and simulated or recorded broker responses. Block production writes and outbound mutation capabilities. Compare decisions and proposed deltas, accounting for different observation times. Shadowing is observation; routing real mutating traffic is a canary.</p>
+<p><strong>Stage 4 · Canary one authoritative path.</strong> Route a stable cohort by business key to the new journey. Record the assignment so retries follow it. Keep exactly one authorized writer per invariant boundary. Either retain the legacy state owner behind its commit API or transfer ownership with an enforced routing epoch or fencing mechanism. Never send the same live write to both systems for comparison.</p>
+<p><strong>Stage 5 · Expand with explicit gates.</strong> Require no unexplained duplicate effects or invariant violations, reconcile all ambiguous provider outcomes within the agreed SLO, verify crash recovery and restore, and meet the measured latency and cost budget. Define thresholds before the canary. Compare business outcomes as well as infrastructure health.</p>
+<p><strong>Stage 6 · Retire after outstanding work is resolved.</strong> Send new admissions to the selected path, then drain, complete, or explicitly migrate old journeys. Retain required template versions, event schemas, idempotency records, and provider reconciliation access. Remove the old listener only after its consumers, timers, callbacks, and rollback obligations are resolved.</p>
+<p>A migration rollback changes future routing while already accepted journeys retain an explicit owner. If data ownership moved, reversing it requires fencing and state reconciliation. Percentage routing alone does not solve ownership.</p></section>
+<section class="article-section" id="operations"><span class="section-number">10</span><h2>Keep the platform smaller than the problem</h2><p>Domain teams own templates, fact contracts, business invariants, fixtures, and failure decisions. Journey owners own end-to-end outcomes and cross-step compatibility. Platform teams own durable scheduling, isolation, state mechanisms, integration infrastructure, and recovery. On-call responsibility follows failure ownership; product stakeholders track journey outcomes without automatically becoming infrastructure operators.</p>
+<p>The local loop can run a template against facts and simulated brokers, then show the proposal and receipt. That makes isolated development easier. Fixture replay is only one layer: retain concurrency tests, broker contract tests, journey integration tests, failure injection, load testing, and restore exercises where the risk warrants them.</p>
+<p>Receipts should identify journey, context, attempt, artifact digest, policy version, read versions, output hash, effect IDs, invariant results, and commit reference. Keep sensitive payloads out of indiscriminate logs. Immutable metadata can coexist with encrypted payloads, access control, and explicit deletion and retention rules. Do not promise unlimited forensic replay after its dependencies or permitted data have expired.</p>
+<p>Track journey success and time to completion; age of pending and unknown effects; queue delay; retry and contention rates; commit latency; capacity fairness; restore time; and cost per completed journey. Domain teams may stop managing replicas, but platform teams still need resource and saturation metrics.</p></section>
+<section class="article-section" id="fit"><span class="section-number">11</span><h2>Where microcells fit</h2><p><strong>Consider this model</strong> for multi-step business operations with waits, retries, external effects, audit needs, and repeated coordination machinery across teams. Its value grows when a shared platform removes duplicated operational work without erasing domain boundaries.</p>
+<p><strong>Keep another model</strong> for workloads whose existing structure already works: low-latency reads, long-lived streaming connections, specialized stateful engines, tightly coupled computations, or teams too small to justify a durable platform. Long computations can be delegated to a suitable engine and represented by durable submit-and-wait steps rather than forced into tiny cells.</p>
+<p>Compare an existing durable-execution product, a simpler service-based workflow, and a modular monolith before building a custom Factory. A modular monolith is an application architecture, not automatically a control plane. The adoption test is measured engineering and operating cost, not a universal service-count threshold.</p>
+<p>The end state is a smaller domain runtime topology supported by a deliberately engineered platform. Publish templates. Pin workflow versions. Run bounded attempts. Commit through the owner of the facts. Record and reconcile effects. Retain enough evidence to recover and explain the result.</p>
+<p><strong>Compute may be transient. Responsibility must remain durable.</strong></p></section>
+<section class="article-section" id="sources"><h2>Sources and boundaries</h2><p>The sources below support individual mechanisms and cautions. The seven-object model, eight-plane decomposition, and migration sequence are the architectural synthesis proposed in this essay; they are not claims that these sources define a universal microcell standard.</p>
+<ol>
+<li id="source-1"><a href="https://docs.aws.amazon.com/wellarchitected/latest/reducing-scope-of-impact-with-cell-based-architecture/what-is-a-cell-based-architecture.html">AWS Well-Architected — What is a cell-based architecture?</a>. Established isolation-cell terminology and partitioned failure domains.</li>
+<li id="source-2"><a href="https://www.postgresql.org/docs/current/transaction-iso.html">PostgreSQL — Transaction isolation</a>. Serializable behavior, anomalies, and transaction retries.</li>
+<li id="source-3"><a href="https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html">AWS Prescriptive Guidance — Transactional outbox pattern</a>. Atomic application writes and outgoing events; duplicate delivery and idempotent consumers.</li>
+<li id="source-4"><a href="https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/saga-orchestration.html">AWS Prescriptive Guidance — Saga orchestration pattern</a>. Coordinating transactions across independent stores and compensating actions.</li>
+<li id="source-5"><a href="https://docs.stripe.com/api/idempotent_requests">Stripe — Idempotent requests</a>. Provider-specific key semantics, replay behavior, and retention.</li>
+<li id="source-6"><a href="https://docs.temporal.io/workflow-definition">Temporal — Workflow definition</a>. Deterministic workflows and compatible changes to recorded execution history.</li>
+<li id="source-7"><a href="https://docs.restate.dev/guides/databases">Restate — Databases and Restate</a>. Journaled results, internal state boundaries, and external database integration.</li>
+<li id="source-8"><a href="https://docs.aws.amazon.com/lambda/latest/dg/snapstart.html">AWS Lambda — SnapStart</a>. Snapshot-based startup and runtime compatibility considerations.</li>
+<li id="source-9"><a href="https://docs.dbos.dev/python/tutorials/workflow-tutorial">DBOS — Workflows</a>. Durable workflow execution and persisted progress.</li>
+<li id="source-10"><a href="https://docs.stripe.com/refunds">Stripe — Refunds</a>. Pending and failed refund states and provider outcome handling.</li>
+<li id="source-11"><a href="https://martinfowler.com/bliki/StranglerFigApplication.html">Martin Fowler — Strangler Fig</a>. Incremental replacement of an existing application.</li>
+</ol>
+<p>Edited architecture proposal · September 2026. Examples and configuration are illustrative, not a reference implementation or benchmark.</p></section>
+      </article>
+    </div>
+
+    <section class="closing"><span class="mono">THE PRINCIPLE THAT SURVIVES EVERY FAILURE</span><p>Compute may be transient.<br><span>Responsibility must remain durable.</span></p><a class="button" href="https://github.com/zozo123/microservices-to-microcells">Explore the source <span class="button-icon" aria-hidden="true">↗</span></a></section>
+  </main>
+  <footer class="site-footer"><a class="wordmark" href="#top">microcells<span class="wordmark-dot">.</span></a><span>Architecture proposal · September 2026</span><a href="#sources">Sources & boundaries <span aria-hidden="true">↗</span></a></footer>
+</body>
+</html>
