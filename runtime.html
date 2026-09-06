@@ -1,0 +1,12 @@
+<figure class="runtime-diagram" aria-labelledby="runtime-title">
+<figcaption id="runtime-title">Where each part runs</figcaption>
+<div class="runtime-platform">
+  <span class="runtime-label">OUTSIDE THE CELL · STAYS RUNNING</span>
+  <div class="runtime-platform-row"><div><strong>Kubernetes <small>optional</small></strong><span>Places and scales workers</span></div><div><strong>Workflow coordinator</strong><span>Saves progress and schedules tasks</span></div></div>
+  <div class="runtime-down">A worker starts a task <span aria-hidden="true">↓</span></div>
+  <div class="runtime-cell"><span class="runtime-label">TASK SANDBOX · ONE ISOLATED ATTEMPT</span><div class="harness-row"><div><strong>Harness</strong><span>Small runner inside the sandbox</span></div><span aria-hidden="true">→</span><div><strong>Task code</strong><span>One fixed version</span></div></div><div class="cell-resources"><span>Program files: read-only</span><span>Working files: temporary</span><span>Network: approved routes only</span></div></div>
+  <div class="runtime-down">Accepted results leave the sandbox <span aria-hidden="true">↓</span></div>
+  <div class="runtime-saved"><div><strong>Durable storage</strong><span>Business data · progress · output files</span></div><div><strong>Integration adapters</strong><span>Send saved actions · record outcomes</span></div></div>
+</div>
+<p>The sandbox can disappear. The saved work remains. Storage and adapters check permission on every operation.</p>
+</figure>

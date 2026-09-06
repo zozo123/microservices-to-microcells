@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#101211">
 <title>From microservices to microcells</title>
-<meta name="description" content="A concise old-vs-new architecture comparison: versioned tasks, durable workflows, explicit state authority, safe external effects, and a five-step migration.">
+<meta name="description" content="Microservices and microcells explained simply: Kubernetes, sandboxes, the runner inside each cell, files, networking, saved progress, and a safe migration.">
 <meta property="og:title" content="From microservices to microcells">
 <meta property="og:description" content="A concise architecture proposal for the durable-execution era. What changes, what stays, and how to migrate.">
 <meta property="og:type" content="article">
@@ -19,183 +19,217 @@
 <a class="skip-link" href="#comparison">Skip to the comparison</a>
 <header class="site-header">
 <a class="wordmark" href="#top" aria-label="Microcells, back to top"><svg width="24" height="24" viewBox="0 0 26 26" aria-hidden="true"><rect x="1" y="1" width="9" height="9" rx="2"/><rect x="16" y="1" width="9" height="9" rx="2"/><rect x="1" y="16" width="9" height="9" rx="2"/><rect x="16" y="16" width="9" height="9" rx="2"/></svg>microcells<span class="wordmark-dot">.</span></a>
-<nav aria-label="Main navigation"><a href="#comparison">Old vs new</a><a href="#architecture">Architecture</a><a href="#migration">Migration</a></nav>
+<nav aria-label="Main navigation"><a href="#comparison">Old vs new</a><a href="#kubernetes">Kubernetes</a><a href="#migration">Migration</a></nav>
 <a class="github-link" href="https://github.com/zozo123/microservices-to-microcells">GitHub <span aria-hidden="true">↗</span></a>
 </header>
 <main id="top">
 <section class="compact-hero" aria-labelledby="page-title">
-<div class="compact-eyebrow"><span class="status-dot"></span> SOFTWARE ARCHITECTURE / A PROPOSAL <span>5 MIN READ</span></div>
+<div class="compact-eyebrow"><span class="status-dot"></span> SOFTWARE ARCHITECTURE / A PROPOSAL <span>6 MIN READ</span></div>
 <h1 id="page-title">From microservices<br><span>to microcells.</span></h1>
-<p>Ship versioned tasks. Coordinate them durably.<br>Keep state ownership and external effects explicit.</p>
+<p>Run a task when it is needed.<br>Save its progress so work can survive a crash.</p>
 </section>
 <section class="compare-diagrams" aria-label="Old versus new architecture">
 <div class="compare-shell"><figure class="compare-panel old-model">
-<figcaption><span class="mono">01 / MICROSERVICES</span><strong>Operate domain services.</strong></figcaption>
+<figcaption><span class="mono">01 / MICROSERVICES</span><strong>Keep services running.</strong></figcaption>
 <div class="entry-node">Request <span aria-hidden="true">↓</span></div>
-<div class="service-network"><div class="service-node"><strong>Orders</strong><span>service + replicas</span></div><span class="network-arrow" aria-hidden="true">↔</span><div class="service-node"><strong>Risk</strong><span>service + replicas</span></div><span class="vertical-arrow" aria-hidden="true">↕</span><span></span><span class="vertical-arrow" aria-hidden="true">↕</span><div class="service-node"><strong>Payments</strong><span>service + replicas</span></div><span class="network-arrow" aria-hidden="true">↔</span><div class="service-node"><strong>Notify</strong><span>service + replicas</span></div></div>
-<div class="model-caption">API calls · events · service-owned coordination</div>
-<div class="model-store">Domain-owned stores <span>↓</span> External providers</div>
-<p class="model-note">Each service carries its own runtime boundary.</p>
+<div class="service-network"><div class="service-node"><strong>Orders</strong><span>running program</span></div><span class="network-arrow" aria-hidden="true">↔</span><div class="service-node"><strong>Risk</strong><span>running program</span></div><span class="vertical-arrow" aria-hidden="true">↕</span><span></span><span class="vertical-arrow" aria-hidden="true">↕</span><div class="service-node"><strong>Payments</strong><span>running program</span></div><span class="network-arrow" aria-hidden="true">↔</span><div class="service-node"><strong>Notifications</strong><span>running program</span></div></div>
+<div class="model-caption">Services call and send messages to each other</div>
+<div class="model-store">Team-owned data <span>·</span> External connections</div>
+<p class="model-note">Teams deploy and operate their own services.</p>
 </figure></div>
 <div class="compare-shell"><figure class="compare-panel new-model">
-<figcaption><span class="mono">02 / MICROCELLS</span><strong>Publish domain behavior.</strong></figcaption>
+<figcaption><span class="mono">02 / MICROCELLS</span><strong>Run tasks when needed.</strong></figcaption>
 <div class="entry-node">Request <span aria-hidden="true">↓</span></div>
-<div class="durable-node"><strong>Durable workflow</strong><span>Pinned versions · recorded progress</span></div>
+<div class="durable-node"><strong>Saved workflow</strong><span>Steps + versions + progress</span></div>
 <div class="tasks-arrow" aria-hidden="true">↓</div>
-<div class="task-network"><div><span>Read</span><small>facts</small></div><span aria-hidden="true">→</span><div><span>Decide</span><small>logic</small></div><span aria-hidden="true">→</span><div><span>Propose</span><small>delta</small></div></div>
-<div class="model-caption">One bounded attempt · shared workers</div>
-<div class="model-store">Owned state + atomic intent <span>↓</span> Outbox → broker → provider</div>
-<p class="model-note">Compute ends. Progress and effect records remain.</p>
+<div class="task-network"><div><span>Read</span><small>input</small></div><span aria-hidden="true">→</span><div><span>Run</span><small>task code</small></div><span aria-hidden="true">→</span><div><span>Propose</span><small>change</small></div></div>
+<div class="model-caption">One isolated task attempt on a shared worker</div>
+<div class="model-store">Save data + next action <span>↓</span> Adapter → provider</div>
+<p class="model-note">The task ends. Saved progress and results remain.</p>
 </figure></div>
 </section>
-<div class="compare-boundary"><span class="mono">SAME OBLIGATION</span><p>Correct state. Explicit ownership. Recoverable effects.<br><span>Microservices can use durable workflows too. Microcells make them the default contract.</span></p></div>
+<div class="compare-boundary"><span class="mono">STILL REQUIRED</span><p>Keep data correct. Know who can change it. Recover unfinished work.<br><span>The shared platform still needs scaling, monitoring, and recovery.</span></p></div>
 <nav class="section-nav" aria-label="Article sections"><a href="#comparison"><span>00</span>Old vs new</a>
-<a href="#architecture"><span>01</span>Execution</a>
-<a href="#refund"><span>02</span>Refund</a>
-<a href="#guarantees"><span>03</span>Guarantees</a>
-<a href="#migration"><span>04</span>Migration</a>
-<a href="#fit"><span>05</span>Fit</a>
+<a href="#kubernetes"><span>01</span>Kubernetes</a>
+<a href="#inside-cell"><span>02</span>Inside a cell</a>
+<a href="#refund"><span>03</span>A refund</a>
+<a href="#guarantees"><span>04</span>Guarantees</a>
+<a href="#migration"><span>05</span>Migration</a>
 <a href="#sources"><span>06</span>Sources</a></nav>
-<article class="article compact-article"><section class="article-section" id="comparison"><span class="section-number">01</span><h2>What changes</h2><p><strong>Move business behavior from independently operated services into versioned tasks coordinated by a durable runtime.</strong> A task attempt can disappear; its progress, state changes, and effect records survive.</p>
-<p>This is a proposed execution model. The infrastructure still runs a fleet. Domain teams keep ownership of their data and business rules.</p>
+<article class="article compact-article"><section class="article-section" id="comparison"><span class="section-number">01</span><h2>What changes</h2><p>A <strong>microservice</strong> is a program that usually stays running and receives requests. A <strong>microcell</strong>, in this proposal, is an isolated run of one task. A shared system starts the task, saves its result, and decides what happens next.</p>
+<p>The goal: teams ship business code without operating a separate server for every capability. The platform still needs servers. Teams still own their data and business rules.</p>
 <div class="table-wrap" role="region" tabindex="0" aria-label="Old vs new table"><table>
 <thead>
 <tr>
-<th>Concern</th>
+<th>Question</th>
 <th>Microservices</th>
 <th>Microcells</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Unit of release</td>
-<td>Service version</td>
-<td>Immutable task template</td>
+<td>What do teams release?</td>
+<td>A service version</td>
+<td>A fixed version of a task, called a <strong>template</strong></td>
 </tr>
 <tr>
-<td>Domain execution</td>
-<td>Long-lived service replicas</td>
-<td>Bounded attempts on shared workers</td>
+<td>What runs?</td>
+<td>Service replicas</td>
+<td>Task attempts on shared workers</td>
 </tr>
 <tr>
-<td>Coordination</td>
-<td>APIs, events, service-owned orchestration</td>
-<td>Versioned workflow and recorded progress</td>
+<td>How do steps connect?</td>
+<td>API calls, messages, and orchestration</td>
+<td>A saved plan of steps, called a <strong>workflow</strong></td>
 </tr>
 <tr>
-<td>State authority</td>
-<td>Domain-owned stores</td>
-<td>Domain-owned commit contracts and stores</td>
+<td>Where does data belong?</td>
+<td>With its owning domain</td>
+<td>With the same owning domain; outside temporary cells</td>
 </tr>
 <tr>
-<td>Recovery</td>
-<td>Service logic plus platform support</td>
-<td>Durable scheduling, deduplicated commits, explicit effect recovery</td>
-</tr>
-<tr>
-<td>Rollout</td>
-<td>Release services and manage compatibility</td>
-<td>Route new journeys to a pinned workflow version</td>
+<td>What happens after a crash?</td>
+<td>Services and consumers recover their work</td>
+<td>The coordinator resumes saved work and retries unfinished tasks</td>
 </tr>
 </tbody>
 </table></div>
-<p>Neither model automatically supplies cross-system atomicity. Microservices can already use durable workflows; microcells make that the default execution contract.</p></section>
-<section class="article-section" id="architecture"><span class="section-number">02</span><h2>The execution contract</h2><ol>
-<li><strong>Publish.</strong> Teams ship immutable templates: code, input/output types, permissions, limits, and invariant references.</li>
-<li><strong>Admit and pin.</strong> Authenticate, deduplicate the request, and record the journey's workflow version and exact template digests.</li>
-<li><strong>Run.</strong> The runtime gives an attempt scoped facts and capabilities. Retries keep the logical step ID and get distinct attempt IDs.</li>
-<li><strong>Commit.</strong> The state owner checks current read dependencies, permissions, and invariants inside the committing transaction. Atomically record the delta, step commit record, receipt reference, and outgoing effect intents. Conflicts re-read and retry. <a class="citation" href="#source-1" aria-label="Source 1">[1]</a></li>
-<li><strong>Continue.</strong> Persist the result before releasing compute. Resume from durable progress. If workflow history lives in a separate system, bridge the commit through an outbox and an idempotent consumer. <a class="citation" href="#source-2" aria-label="Source 2">[2]</a></li>
-<li><strong>Act externally.</strong> Brokers dispatch committed intents with stable operation IDs. Record provider outcomes; reconcile uncertainty. <a class="citation" href="#source-3" aria-label="Source 3">[3]</a></li>
-</ol>
-<p>The platform owns workers, scheduling, policy enforcement, and recovery. Domains own correctness. The state layer can be partitioned; there is no requirement for one company-wide database. Ordinary reads continue through query paths with explicit consistency guarantees.</p></section>
-<section class="article-section" id="refund"><span class="section-number">03</span><h2>A refund, safely</h2><p>For a $30 refund from a $100 capture, validate a positive amount and matching currency. Enforce this invariant in the authoritative transaction:</p>
-<pre><code class="language-text">completed refunds + active reservations &lt;= captured amount
-</code></pre>
-<ol>
-<li><strong>Admit</strong> the request once using its scoped idempotency key and payload identity.</li>
-<li><strong>Reserve</strong> $30 and commit the payment intent, step record, and evidence reference together.</li>
-<li><strong>Dispatch</strong> that intent using the provider's supported idempotency contract.</li>
-<li><strong>Resolve</strong> the outcome. Pending or timed-out operations keep their reservation; a timeout means unknown, not failed. <a class="citation" href="#source-3" aria-label="Source 3">[3]</a><a class="citation" href="#source-4" aria-label="Source 4">[4]</a></li>
-<li><strong>Finalize</strong> confirmed success as a completed refund. Release the reservation on definitive failure. Recover a lost acknowledgment from the commit record.</li>
-<li><strong>Notify</strong> through a separate intent. Retrying email must never repeat the refund.</li>
-</ol>
-<p>Dropping a local proposal cannot undo an external payment. Use short transactions and durable pending states while waiting for a provider.</p><details class="demo-details"><summary>Explore four failure scenarios</summary><section class="walkthrough" id="walkthrough" aria-labelledby="walkthrough-title">
-  <span class="eyebrow">FOLLOW THE FACTS</span>
-  <h2 id="walkthrough-title">One refund.<br>Six durable transitions.</h2>
-  <p>Trace a $30 refund from a $100 capture. Change the scenario to see what survives a crash or an uncertain provider response.</p>
-  <div class="simulation-shell"><div class="simulation">
-    <div class="simulation-top"><label for="scenario">Scenario</label><select id="scenario"><option value="happy">Successful refund</option><option value="timeout">Provider timeout</option><option value="crash">Lost commit acknowledgment</option><option value="conflict">Concurrent refund conflict</option></select><span class="mini-tag">ILLUSTRATIVE</span></div>
-    <ol class="sim-steps" aria-label="Refund transitions">
-      <li><button type="button" data-step="0" aria-current="step"><span>01</span>Admit</button></li><li><button type="button" data-step="1"><span>02</span>Reserve</button></li><li><button type="button" data-step="2"><span>03</span>Dispatch</button></li><li><button type="button" data-step="3"><span>04</span>Resolve</button></li><li><button type="button" data-step="4"><span>05</span>Finalize</button></li><li><button type="button" data-step="5"><span>06</span>Notify</button></li>
-    </ol>
-    <div class="sim-result" aria-live="polite" aria-atomic="true"><div class="sim-state"><span class="mono" id="sim-label">ADMISSION COMMITTED</span><h3 id="sim-title">A request becomes a journey.</h3><p id="sim-description">The request key and payload identity are recorded. Repeating this request returns the same journey instead of creating a second refund.</p><div class="sim-receipt"><span class="mono">DURABLE RECORD</span><code id="sim-record">journey: refund-042 · version: v12</code></div></div><dl class="sim-balances"><div><dt>Capture</dt><dd id="sim-capture">$100</dd></div><div><dt>Reserved</dt><dd id="sim-reserved">$0</dd></div><div><dt>Refunded</dt><dd id="sim-refunded">$0</dd></div><div class="sim-provider"><dt>Provider outcome</dt><dd id="sim-provider">Not submitted</dd></div></dl></div>
-    <div class="simulation-bottom"><span id="sim-progress">Step 1 of 6</span><div><button type="button" class="sim-reset" id="sim-reset">Reset</button><button type="button" class="sim-next" id="sim-next">Next transition <span aria-hidden="true">→</span></button></div></div>
-  </div></div>
-  <p class="simulation-footnote">A teaching model, not a payment processor. A committed intent and a remote refund are separate transactions.</p>
-  <noscript><p>The complete six-step flow appears immediately below. Enable JavaScript to explore the failure scenarios interactively.</p></noscript>
+<p>Microservices can already use durable workflows. Microcells make saved progress and bounded tasks the default way to build a write path.</p></section>
+<section class="article-section" id="kubernetes"><span class="section-number">02</span><h2>Where Kubernetes fits</h2><p><strong>Kubernetes manages running capacity. A sandbox isolates code. A workflow coordinator remembers the work.</strong> These are different jobs, and they can work together.</p>
+<p>Kubernetes can manage the worker pool that creates cells. A cell need not be a new Kubernetes Pod. A compatible runtime can also isolate workloads through Kubernetes <strong>RuntimeClass</strong>, which selects how a Pod runs. A Kubernetes Job can restart failed work, but it does not automatically save business progress or prevent a duplicate payment. <a class="citation" href="#source-1" aria-label="Source 1">[1]</a></p>
+<p>The sandbox might be a small virtual machine, such as a Firecracker microVM, or a gVisor sandbox. Their isolation, speed, and compatibility differ. Neither provides durable business execution by itself. <a class="citation" href="#source-2" aria-label="Source 2">[2]</a></p><figure class="runtime-diagram" aria-labelledby="runtime-title">
+<figcaption id="runtime-title">Where each part runs</figcaption>
+<div class="runtime-platform">
+  <span class="runtime-label">OUTSIDE THE CELL · STAYS RUNNING</span>
+  <div class="runtime-platform-row"><div><strong>Kubernetes <small>optional</small></strong><span>Places and scales workers</span></div><div><strong>Workflow coordinator</strong><span>Saves progress and schedules tasks</span></div></div>
+  <div class="runtime-down">A worker starts a task <span aria-hidden="true">↓</span></div>
+  <div class="runtime-cell"><span class="runtime-label">TASK SANDBOX · ONE ISOLATED ATTEMPT</span><div class="harness-row"><div><strong>Harness</strong><span>Small runner inside the sandbox</span></div><span aria-hidden="true">→</span><div><strong>Task code</strong><span>One fixed version</span></div></div><div class="cell-resources"><span>Program files: read-only</span><span>Working files: temporary</span><span>Network: approved routes only</span></div></div>
+  <div class="runtime-down">Accepted results leave the sandbox <span aria-hidden="true">↓</span></div>
+  <div class="runtime-saved"><div><strong>Durable storage</strong><span>Business data · progress · output files</span></div><div><strong>Integration adapters</strong><span>Send saved actions · record outcomes</span></div></div>
+</div>
+<p>The sandbox can disappear. The saved work remains. Storage and adapters check permission on every operation.</p>
+</figure>
 </section>
-</details></section>
-<section class="article-section" id="guarantees"><span class="section-number">04</span><h2>The actual guarantees</h2><div class="table-wrap" role="region" tabindex="0" aria-label="Guarantees table"><table>
+<section class="article-section" id="inside-cell"><span class="section-number">03</span><h2>Inside each cell</h2><p>The <strong>harness</strong> is a small runner inside the sandbox. It loads the chosen task version, supplies its input, starts the code, and collects its output and errors. A supervisor outside the sandbox enforces time and resource limits and saves accepted results.</p>
+<div class="table-wrap" role="region" tabindex="0" aria-label="Inside a cell table"><table>
 <thead>
 <tr>
-<th>Mechanism</th>
-<th>Boundary</th>
+<th>Part</th>
+<th>Rule in this design</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Durable execution</td>
-<td>Work can resume from recorded progress. Attempts may run more than once.</td>
+<td>Program files</td>
+<td>Read-only package at a fixed version.</td>
 </tr>
 <tr>
-<td>Deterministic replay</td>
-<td>Requires recorded inputs, decisions, and nondeterministic results—not just the same code digest. <a class="citation" href="#source-5" aria-label="Source 5">[5]</a></td>
+<td>Working files</td>
+<td>Private, size-limited scratch space. Safe to discard after the attempt.</td>
 </tr>
 <tr>
-<td>Transactional commit</td>
-<td>Protects the invariant inside its transaction boundary. Independent stores still need coordination. <a class="citation" href="#source-1" aria-label="Source 1">[1]</a><a class="citation" href="#source-6" aria-label="Source 6">[6]</a></td>
+<td>Files to keep</td>
+<td>Upload to durable storage before committing references to them. Business data and saved progress live outside the cell.</td>
 </tr>
 <tr>
-<td>Provider idempotency</td>
-<td>Depends on key scope, payload matching, retention, and provider behavior. It is not universal exactly-once execution. <a class="citation" href="#source-3" aria-label="Source 3">[3]</a></td>
+<td>Incoming network</td>
+<td>No public endpoint for each task. The platform supplies its input.</td>
 </tr>
 <tr>
-<td>Route rollback</td>
-<td>Changes future admissions. Existing journeys, committed data, and external effects need explicit handling.</td>
+<td>Outgoing network</td>
+<td>Block by default. Permit only approved storage, result, and integration channels.</td>
 </tr>
 <tr>
-<td>Signed receipts</td>
-<td>Support integrity and provenance. They do not prove business correctness.</td>
+<td>External actions</td>
+<td>An adapter, also called a <strong>broker</strong>, checks permissions and performs recorded actions such as payments.</td>
 </tr>
 </tbody>
-</table></div></section>
-<section class="article-section" id="migration"><span class="section-number">05</span><h2>Migrate without two writers</h2><ol>
-<li><strong>Pick one journey.</strong> Map its facts, writers, effects, and failure states. Baseline completion time, operating effort, and cost.</li>
-<li><strong>Add durability first.</strong> Wrap the existing path with journey identity, progress, deduplication, and an effect journal. Keep existing stores and query paths initially.</li>
-<li><strong>Extract and shadow.</strong> Package one cohesive task. Compare proposals against recorded inputs with production writes and external mutations technically disabled.</li>
-<li><strong>Canary by business key.</strong> Persist each journey's route. Keep one authoritative writer per invariant boundary. Fence stale writers if ownership transfers; a traffic flag alone is insufficient.</li>
-<li><strong>Expand, then retire.</strong> Require successful concurrency, crash, reconciliation, and rollback exercises plus agreed outcome and cost targets. Resolve old journeys, callbacks, and pending effects before deleting their listeners.</li>
-</ol>
-<p>Rollback redirects new work. In-flight journeys retain explicit ownership and compatible versions until completed, quarantined, or deliberately migrated. This is incremental replacement, not a rewrite of every service. <a class="citation" href="#source-7" aria-label="Source 7">[7]</a></p></section>
-<section class="article-section" id="fit"><span class="section-number">06</span><h2>When it earns its complexity</h2><p><strong>Use it</strong> when multi-step mutations, waits, retries, external integrations, and repeated recovery machinery justify a shared durable platform.</p>
-<p><strong>Keep what works</strong> for simple systems, read-heavy endpoints, persistent streams, and specialized stateful workloads. Evaluate an existing durable runtime or a modular monolith before building a custom execution platform.</p>
-<p>Here, <em>microcell</em> means a bounded execution attempt. Established <em>cell-based architecture</em> means an isolated workload partition; the two ideas can coexist. <a class="citation" href="#source-8" aria-label="Source 8">[8]</a></p>
-<p><strong>The gain is less domain runtime machinery. The obligation is still correct state and effects.</strong></p></section>
-<section class="article-section" id="sources"><h2>Sources</h2><p>These references support the mechanisms. The microcell composition above is a proposal, not a standard or a benchmark.</p>
+</table></div>
+<p>The runner is not the security boundary. Sandbox isolation, outside network controls, and storage/adapter authorization enforce the limits. Kubernetes network rules require a supporting network plugin; an allowed connection is not permission to perform every operation. <a class="citation" href="#source-3" aria-label="Source 3">[3]</a></p>
+<p>A snapshot can speed startup, but it is optional. After copying one, refresh the task's identity, credentials, connections, and cached random state as needed. <a class="citation" href="#source-4" aria-label="Source 4">[4]</a></p></section>
+<section class="article-section" id="refund"><span class="section-number">04</span><h2>One refund, end to end</h2><p>Suppose someone requests $30 back from a $100 payment. Validate a positive amount and matching currency. The business rule is:</p>
+<pre><code class="language-text">completed refunds + money reserved for refunds &lt;= captured payment
+</code></pre>
 <ol>
-<li id="source-1"><a href="https://www.postgresql.org/docs/current/transaction-iso.html">PostgreSQL: transaction isolation</a>.</li>
-<li id="source-2"><a href="https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html">AWS: transactional outbox</a>.</li>
-<li id="source-3"><a href="https://docs.stripe.com/api/idempotent_requests">Stripe: idempotent requests</a>.</li>
-<li id="source-4"><a href="https://docs.stripe.com/refunds">Stripe: refund states</a>.</li>
-<li id="source-5"><a href="https://docs.temporal.io/workflow-definition">Temporal: workflow determinism</a>.</li>
-<li id="source-6"><a href="https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/saga-orchestration.html">AWS: saga orchestration</a>.</li>
-<li id="source-7"><a href="https://martinfowler.com/bliki/StranglerFigApplication.html">Martin Fowler: Strangler Fig</a>.</li>
-<li id="source-8"><a href="https://docs.aws.amazon.com/wellarchitected/latest/reducing-scope-of-impact-with-cell-based-architecture/what-is-a-cell-based-architecture.html">AWS: cell-based architecture</a>.</li>
+<li><strong>Accept once.</strong> Save a request key and its input. Repeating that key with the same input returns the same journey—the running instance of the workflow. Reject the same key with different input.</li>
+<li><strong>Choose versions.</strong> Record the exact workflow and task versions. Keep them for that journey's retries.</li>
+<li><strong>Run a cell.</strong> Its runner supplies the payment facts; task code proposes a $30 reservation. It cannot approve its own database write.</li>
+<li><strong>Save together.</strong> The data owner checks the current balance and business rules inside one transaction. Use the journey and step ID to return an already committed result instead of writing twice. Save the reservation, step result, execution record, and payment instruction together. If competing work changed the balance, re-read and retry or reject. <a class="citation" href="#source-5" aria-label="Source 5">[5]</a></li>
+<li><strong>Send the payment.</strong> An <strong>outbox</strong>—the saved list of actions to send—passes the instruction to the payment adapter. Retries reuse the same operation identity and payload. <a class="citation" href="#source-6" aria-label="Source 6">[6]</a></li>
+<li><strong>Resolve and finish.</strong> Confirmed final success becomes a completed refund. Definitive failure releases the reservation. Keep the reservation while the provider reports pending. A timeout means <strong>unknown</strong>: keep it reserved and check with the provider. Send notification separately so an email retry cannot repeat the refund. <a class="citation" href="#source-7" aria-label="Source 7">[7]</a></li>
 </ol>
-<p>September 2026 · Architecture proposal · Examples are illustrative.</p></section></article>
-<div class="compact-end"><p>Less domain runtime machinery.<br><span>The same responsibility for correctness.</span></p><a href="essay.md" download>Download the concise writeup <span aria-hidden="true">↓</span></a></div>
+<p>Release the cell only after its result has been durably accepted. Never keep a temporary cell or a database transaction open while waiting hours for a provider.</p><details class="demo-details"><summary>Try the refund failure scenarios</summary><section class="walkthrough" id="walkthrough" aria-labelledby="walkthrough-title">
+  <span class="eyebrow">FOLLOW THE FACTS</span>
+  <h2 id="walkthrough-title">One refund.<br>Six steps with saved progress.</h2>
+  <p>Trace a $30 refund from a $100 capture. Change the scenario to see what survives a crash or an uncertain provider response.</p>
+  <div class="simulation-shell"><div class="simulation">
+    <div class="simulation-top"><label for="scenario">Scenario</label><select id="scenario"><option value="happy">Successful refund</option><option value="timeout">Provider timeout</option><option value="crash">Worker crashes after saving</option><option value="conflict">Two refunds compete</option></select><span class="mini-tag">ILLUSTRATIVE</span></div>
+    <ol class="sim-steps" aria-label="Refund transitions">
+      <li><button type="button" data-step="0" aria-current="step"><span>01</span>Admit</button></li><li><button type="button" data-step="1"><span>02</span>Reserve</button></li><li><button type="button" data-step="2"><span>03</span>Dispatch</button></li><li><button type="button" data-step="3"><span>04</span>Resolve</button></li><li><button type="button" data-step="4"><span>05</span>Finalize</button></li><li><button type="button" data-step="5"><span>06</span>Notify</button></li>
+    </ol>
+    <div class="sim-result" aria-live="polite" aria-atomic="true"><div class="sim-state"><span class="mono" id="sim-label">REQUEST SAVED</span><h3 id="sim-title">A request becomes a journey.</h3><p id="sim-description">The request key and payload identity are recorded. Repeating this request returns the same journey instead of creating a second refund.</p><div class="sim-receipt"><span class="mono">SAVED RECORD</span><code id="sim-record">journey: refund-042 · version: v12</code></div></div><dl class="sim-balances"><div><dt>Capture</dt><dd id="sim-capture">$100</dd></div><div><dt>Reserved</dt><dd id="sim-reserved">$0</dd></div><div><dt>Refunded</dt><dd id="sim-refunded">$0</dd></div><div class="sim-provider"><dt>Provider outcome</dt><dd id="sim-provider">Not submitted</dd></div></dl></div>
+    <div class="simulation-bottom"><span id="sim-progress">Step 1 of 6</span><div><button type="button" class="sim-reset" id="sim-reset">Reset</button><button type="button" class="sim-next" id="sim-next">Next step <span aria-hidden="true">→</span></button></div></div>
+  </div></div>
+  <p class="simulation-footnote">A teaching model, not a payment processor. Saving a payment instruction and sending the money happen in separate systems.</p>
+  <noscript><p>The complete six-step flow appears immediately below. Enable JavaScript to explore the failure scenarios interactively.</p></noscript>
+</section>
+</details></section>
+<section class="article-section" id="guarantees"><span class="section-number">05</span><h2>What the design actually guarantees</h2><div class="table-wrap" role="region" tabindex="0" aria-label="Guarantees table"><table>
+<thead>
+<tr>
+<th>Claim</th>
+<th>Precise meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Work survives a crash</td>
+<td>Saved progress can be recovered. An unfinished attempt may run again.</td>
+</tr>
+<tr>
+<td>Replay follows the same path</td>
+<td>It must use recorded decisions and outside results. The same program version alone is insufficient. <a class="citation" href="#source-8" aria-label="Source 8">[8]</a></td>
+</tr>
+<tr>
+<td>A state change is atomic</td>
+<td>All its writes succeed together inside one transaction boundary. Separate stores still need coordination. <a class="citation" href="#source-5" aria-label="Source 5">[5]</a><a class="citation" href="#source-9" aria-label="Source 9">[9]</a></td>
+</tr>
+<tr>
+<td>A payment is not duplicated</td>
+<td>Only if the provider's deduplication rules and recovery protocol support it. Keys can expire. <a class="citation" href="#source-7" aria-label="Source 7">[7]</a></td>
+</tr>
+<tr>
+<td>A release can be rolled back</td>
+<td>New work can use the previous version. Existing work, saved data, and outside actions still need handling.</td>
+</tr>
+</tbody>
+</table></div>
+<p>An execution record helps explain what happened. A signature can protect that record from tampering; it does not prove the business decision was correct.</p></section>
+<section class="article-section" id="migration"><span class="section-number">06</span><h2>Move one workflow at a time</h2><ol>
+<li><strong>Pick a small journey.</strong> Identify its data owner, writers, outside actions, and failure states. Measure completion time, operating effort, and cost.</li>
+<li><strong>Add saved progress.</strong> Coordinate the existing services first. Keep their stores and ordinary read paths working.</li>
+<li><strong>Extract one task.</strong> Test it on recorded inputs with production writes and outside actions disabled. Compare its proposed results.</li>
+<li><strong>Move a stable group.</strong> Route a chosen set of customers or accounts to the new path. Keep one authorized writer for each protected set of facts. Reject delayed writes from the old path if ownership moves.</li>
+<li><strong>Expand after recovery works.</strong> Test crashes, concurrent requests, uncertain provider outcomes, and rollback. Resolve old journeys and callbacks before removing their services. <a class="citation" href="#source-10" aria-label="Source 10">[10]</a></li>
+</ol>
+<p>Use this model when multi-step work, waits, retries, and repeated recovery code justify a shared platform. Keep simpler services, persistent streams, and specialized systems where they work well. An existing workflow runtime or modular monolith may be enough.</p></section>
+<section class="article-section" id="sources"><h2>Sources and terminology</h2><p>This is an architecture proposal, not an established standard or a benchmark. Here, <em>microcell</em> means one bounded task execution. Established <em>cell-based architecture</em> means independent workload partitions; the two can coexist. <a class="citation" href="#source-11" aria-label="Source 11">[11]</a></p>
+<ol>
+<li id="source-1">Kubernetes: <a href="https://kubernetes.io/docs/concepts/containers/runtime-class/">RuntimeClass</a> · <a href="https://kubernetes.io/docs/concepts/workloads/controllers/job/">Jobs</a>.</li>
+<li id="source-2">Sandbox choices: <a href="https://firecracker-microvm.github.io/">Firecracker</a> · <a href="https://gvisor.dev/docs/">gVisor</a>.</li>
+<li id="source-3">Kubernetes: <a href="https://kubernetes.io/docs/concepts/services-networking/network-policies/">NetworkPolicy</a>.</li>
+<li id="source-4">Firecracker: <a href="https://github.com/firecracker-microvm/firecracker/blob/main/docs/snapshotting/snapshot-support.md">snapshot cloning</a>.</li>
+<li id="source-5">PostgreSQL: <a href="https://www.postgresql.org/docs/current/transaction-iso.html">transaction isolation</a>.</li>
+<li id="source-6">AWS: <a href="https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html">transactional outbox</a>.</li>
+<li id="source-7">Stripe: <a href="https://docs.stripe.com/api/idempotent_requests">idempotency</a> · <a href="https://docs.stripe.com/refunds">refund states</a>.</li>
+<li id="source-8">Temporal: <a href="https://docs.temporal.io/workflow-definition">workflow determinism</a>.</li>
+<li id="source-9">AWS: <a href="https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/saga-orchestration.html">saga orchestration</a>.</li>
+<li id="source-10">Martin Fowler: <a href="https://martinfowler.com/bliki/StranglerFigApplication.html">incremental replacement</a>.</li>
+<li id="source-11">AWS: <a href="https://docs.aws.amazon.com/wellarchitected/latest/reducing-scope-of-impact-with-cell-based-architecture/what-is-a-cell-based-architecture.html">cell-based architecture</a>.</li>
+</ol>
+<p>September 2026 · Examples are illustrative.</p></section></article>
+<div class="compact-end"><p>Run the task. Save the result.<br><span>Keep enough history to recover.</span></p><a href="essay.md" download>Download the concise writeup <span aria-hidden="true">↓</span></a></div>
 </main>
-<footer class="site-footer"><span>Architecture proposal · September 2026</span><a href="#sources">8 primary sources</a><a href="https://github.com/zozo123/microservices-to-microcells">Source on GitHub <span aria-hidden="true">↗</span></a></footer>
+<footer class="site-footer"><span>Architecture proposal · September 2026</span><a href="#sources">Primary sources</a><a href="https://github.com/zozo123/microservices-to-microcells">Source on GitHub <span aria-hidden="true">↗</span></a></footer>
 </body>
 </html>

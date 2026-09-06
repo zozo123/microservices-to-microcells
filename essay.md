@@ -2,91 +2,98 @@
 
 ## What changes
 
-**Move business behavior from independently operated services into versioned tasks coordinated by a durable runtime.** A task attempt can disappear; its progress, state changes, and effect records survive.
+A **microservice** is a program that usually stays running and receives requests. A **microcell**, in this proposal, is an isolated run of one task. A shared system starts the task, saves its result, and decides what happens next.
 
-This is a proposed execution model. The infrastructure still runs a fleet. Domain teams keep ownership of their data and business rules.
+The goal: teams ship business code without operating a separate server for every capability. The platform still needs servers. Teams still own their data and business rules.
 
-| Concern | Microservices | Microcells |
+| Question | Microservices | Microcells |
 | --- | --- | --- |
-| Unit of release | Service version | Immutable task template |
-| Domain execution | Long-lived service replicas | Bounded attempts on shared workers |
-| Coordination | APIs, events, service-owned orchestration | Versioned workflow and recorded progress |
-| State authority | Domain-owned stores | Domain-owned commit contracts and stores |
-| Recovery | Service logic plus platform support | Durable scheduling, deduplicated commits, explicit effect recovery |
-| Rollout | Release services and manage compatibility | Route new journeys to a pinned workflow version |
+| What do teams release? | A service version | A fixed version of a task, called a **template** |
+| What runs? | Service replicas | Task attempts on shared workers |
+| How do steps connect? | API calls, messages, and orchestration | A saved plan of steps, called a **workflow** |
+| Where does data belong? | With its owning domain | With the same owning domain; outside temporary cells |
+| What happens after a crash? | Services and consumers recover their work | The coordinator resumes saved work and retries unfinished tasks |
 
-Neither model automatically supplies cross-system atomicity. Microservices can already use durable workflows; microcells make that the default execution contract.
+Microservices can already use durable workflows. Microcells make saved progress and bounded tasks the default way to build a write path.
 
-## The execution contract
+## Where Kubernetes fits
 
-1. **Publish.** Teams ship immutable templates: code, input/output types, permissions, limits, and invariant references.
-2. **Admit and pin.** Authenticate, deduplicate the request, and record the journey's workflow version and exact template digests.
-3. **Run.** The runtime gives an attempt scoped facts and capabilities. Retries keep the logical step ID and get distinct attempt IDs.
-4. **Commit.** The state owner checks current read dependencies, permissions, and invariants inside the committing transaction. Atomically record the delta, step commit record, receipt reference, and outgoing effect intents. Conflicts re-read and retry. [1]
-5. **Continue.** Persist the result before releasing compute. Resume from durable progress. If workflow history lives in a separate system, bridge the commit through an outbox and an idempotent consumer. [2]
-6. **Act externally.** Brokers dispatch committed intents with stable operation IDs. Record provider outcomes; reconcile uncertainty. [3]
+**Kubernetes manages running capacity. A sandbox isolates code. A workflow coordinator remembers the work.** These are different jobs, and they can work together.
 
-The platform owns workers, scheduling, policy enforcement, and recovery. Domains own correctness. The state layer can be partitioned; there is no requirement for one company-wide database. Ordinary reads continue through query paths with explicit consistency guarantees.
+Kubernetes can manage the worker pool that creates cells. A cell need not be a new Kubernetes Pod. A compatible runtime can also isolate workloads through Kubernetes **RuntimeClass**, which selects how a Pod runs. A Kubernetes Job can restart failed work, but it does not automatically save business progress or prevent a duplicate payment. [1]
 
-## A refund, safely
+The sandbox might be a small virtual machine, such as a Firecracker microVM, or a gVisor sandbox. Their isolation, speed, and compatibility differ. Neither provides durable business execution by itself. [2]
 
-For a $30 refund from a $100 capture, validate a positive amount and matching currency. Enforce this invariant in the authoritative transaction:
+## Inside each cell
+
+The **harness** is a small runner inside the sandbox. It loads the chosen task version, supplies its input, starts the code, and collects its output and errors. A supervisor outside the sandbox enforces time and resource limits and saves accepted results.
+
+| Part | Rule in this design |
+| --- | --- |
+| Program files | Read-only package at a fixed version. |
+| Working files | Private, size-limited scratch space. Safe to discard after the attempt. |
+| Files to keep | Upload to durable storage before committing references to them. Business data and saved progress live outside the cell. |
+| Incoming network | No public endpoint for each task. The platform supplies its input. |
+| Outgoing network | Block by default. Permit only approved storage, result, and integration channels. |
+| External actions | An adapter, also called a **broker**, checks permissions and performs recorded actions such as payments. |
+
+The runner is not the security boundary. Sandbox isolation, outside network controls, and storage/adapter authorization enforce the limits. Kubernetes network rules require a supporting network plugin; an allowed connection is not permission to perform every operation. [3]
+
+A snapshot can speed startup, but it is optional. After copying one, refresh the task's identity, credentials, connections, and cached random state as needed. [4]
+
+## One refund, end to end
+
+Suppose someone requests $30 back from a $100 payment. Validate a positive amount and matching currency. The business rule is:
 
 ```text
-completed refunds + active reservations <= captured amount
+completed refunds + money reserved for refunds <= captured payment
 ```
 
-1. **Admit** the request once using its scoped idempotency key and payload identity.
-2. **Reserve** $30 and commit the payment intent, step record, and evidence reference together.
-3. **Dispatch** that intent using the provider's supported idempotency contract.
-4. **Resolve** the outcome. Pending or timed-out operations keep their reservation; a timeout means unknown, not failed. [3][4]
-5. **Finalize** confirmed success as a completed refund. Release the reservation on definitive failure. Recover a lost acknowledgment from the commit record.
-6. **Notify** through a separate intent. Retrying email must never repeat the refund.
+1. **Accept once.** Save a request key and its input. Repeating that key with the same input returns the same journey—the running instance of the workflow. Reject the same key with different input.
+2. **Choose versions.** Record the exact workflow and task versions. Keep them for that journey's retries.
+3. **Run a cell.** Its runner supplies the payment facts; task code proposes a $30 reservation. It cannot approve its own database write.
+4. **Save together.** The data owner checks the current balance and business rules inside one transaction. Use the journey and step ID to return an already committed result instead of writing twice. Save the reservation, step result, execution record, and payment instruction together. If competing work changed the balance, re-read and retry or reject. [5]
+5. **Send the payment.** An **outbox**—the saved list of actions to send—passes the instruction to the payment adapter. Retries reuse the same operation identity and payload. [6]
+6. **Resolve and finish.** Confirmed final success becomes a completed refund. Definitive failure releases the reservation. Keep the reservation while the provider reports pending. A timeout means **unknown**: keep it reserved and check with the provider. Send notification separately so an email retry cannot repeat the refund. [7]
 
-Dropping a local proposal cannot undo an external payment. Use short transactions and durable pending states while waiting for a provider.
+Release the cell only after its result has been durably accepted. Never keep a temporary cell or a database transaction open while waiting hours for a provider.
 
-## The actual guarantees
+## What the design actually guarantees
 
-| Mechanism | Boundary |
+| Claim | Precise meaning |
 | --- | --- |
-| Durable execution | Work can resume from recorded progress. Attempts may run more than once. |
-| Deterministic replay | Requires recorded inputs, decisions, and nondeterministic results—not just the same code digest. [5] |
-| Transactional commit | Protects the invariant inside its transaction boundary. Independent stores still need coordination. [1][6] |
-| Provider idempotency | Depends on key scope, payload matching, retention, and provider behavior. It is not universal exactly-once execution. [3] |
-| Route rollback | Changes future admissions. Existing journeys, committed data, and external effects need explicit handling. |
-| Signed receipts | Support integrity and provenance. They do not prove business correctness. |
+| Work survives a crash | Saved progress can be recovered. An unfinished attempt may run again. |
+| Replay follows the same path | It must use recorded decisions and outside results. The same program version alone is insufficient. [8] |
+| A state change is atomic | All its writes succeed together inside one transaction boundary. Separate stores still need coordination. [5][9] |
+| A payment is not duplicated | Only if the provider's deduplication rules and recovery protocol support it. Keys can expire. [7] |
+| A release can be rolled back | New work can use the previous version. Existing work, saved data, and outside actions still need handling. |
 
-## Migrate without two writers
+An execution record helps explain what happened. A signature can protect that record from tampering; it does not prove the business decision was correct.
 
-1. **Pick one journey.** Map its facts, writers, effects, and failure states. Baseline completion time, operating effort, and cost.
-2. **Add durability first.** Wrap the existing path with journey identity, progress, deduplication, and an effect journal. Keep existing stores and query paths initially.
-3. **Extract and shadow.** Package one cohesive task. Compare proposals against recorded inputs with production writes and external mutations technically disabled.
-4. **Canary by business key.** Persist each journey's route. Keep one authoritative writer per invariant boundary. Fence stale writers if ownership transfers; a traffic flag alone is insufficient.
-5. **Expand, then retire.** Require successful concurrency, crash, reconciliation, and rollback exercises plus agreed outcome and cost targets. Resolve old journeys, callbacks, and pending effects before deleting their listeners.
+## Move one workflow at a time
 
-Rollback redirects new work. In-flight journeys retain explicit ownership and compatible versions until completed, quarantined, or deliberately migrated. This is incremental replacement, not a rewrite of every service. [7]
+1. **Pick a small journey.** Identify its data owner, writers, outside actions, and failure states. Measure completion time, operating effort, and cost.
+2. **Add saved progress.** Coordinate the existing services first. Keep their stores and ordinary read paths working.
+3. **Extract one task.** Test it on recorded inputs with production writes and outside actions disabled. Compare its proposed results.
+4. **Move a stable group.** Route a chosen set of customers or accounts to the new path. Keep one authorized writer for each protected set of facts. Reject delayed writes from the old path if ownership moves.
+5. **Expand after recovery works.** Test crashes, concurrent requests, uncertain provider outcomes, and rollback. Resolve old journeys and callbacks before removing their services. [10]
 
-## When it earns its complexity
+Use this model when multi-step work, waits, retries, and repeated recovery code justify a shared platform. Keep simpler services, persistent streams, and specialized systems where they work well. An existing workflow runtime or modular monolith may be enough.
 
-**Use it** when multi-step mutations, waits, retries, external integrations, and repeated recovery machinery justify a shared durable platform.
+## Sources and terminology
 
-**Keep what works** for simple systems, read-heavy endpoints, persistent streams, and specialized stateful workloads. Evaluate an existing durable runtime or a modular monolith before building a custom execution platform.
+This is an architecture proposal, not an established standard or a benchmark. Here, *microcell* means one bounded task execution. Established *cell-based architecture* means independent workload partitions; the two can coexist. [11]
 
-Here, *microcell* means a bounded execution attempt. Established *cell-based architecture* means an isolated workload partition; the two ideas can coexist. [8]
+1. Kubernetes: [RuntimeClass](https://kubernetes.io/docs/concepts/containers/runtime-class/) · [Jobs](https://kubernetes.io/docs/concepts/workloads/controllers/job/).
+2. Sandbox choices: [Firecracker](https://firecracker-microvm.github.io/) · [gVisor](https://gvisor.dev/docs/).
+3. Kubernetes: [NetworkPolicy](https://kubernetes.io/docs/concepts/services-networking/network-policies/).
+4. Firecracker: [snapshot cloning](https://github.com/firecracker-microvm/firecracker/blob/main/docs/snapshotting/snapshot-support.md).
+5. PostgreSQL: [transaction isolation](https://www.postgresql.org/docs/current/transaction-iso.html).
+6. AWS: [transactional outbox](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html).
+7. Stripe: [idempotency](https://docs.stripe.com/api/idempotent_requests) · [refund states](https://docs.stripe.com/refunds).
+8. Temporal: [workflow determinism](https://docs.temporal.io/workflow-definition).
+9. AWS: [saga orchestration](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/saga-orchestration.html).
+10. Martin Fowler: [incremental replacement](https://martinfowler.com/bliki/StranglerFigApplication.html).
+11. AWS: [cell-based architecture](https://docs.aws.amazon.com/wellarchitected/latest/reducing-scope-of-impact-with-cell-based-architecture/what-is-a-cell-based-architecture.html).
 
-**The gain is less domain runtime machinery. The obligation is still correct state and effects.**
-
-## Sources
-
-These references support the mechanisms. The microcell composition above is a proposal, not a standard or a benchmark.
-
-1. [PostgreSQL: transaction isolation](https://www.postgresql.org/docs/current/transaction-iso.html).
-2. [AWS: transactional outbox](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html).
-3. [Stripe: idempotent requests](https://docs.stripe.com/api/idempotent_requests).
-4. [Stripe: refund states](https://docs.stripe.com/refunds).
-5. [Temporal: workflow determinism](https://docs.temporal.io/workflow-definition).
-6. [AWS: saga orchestration](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/saga-orchestration.html).
-7. [Martin Fowler: Strangler Fig](https://martinfowler.com/bliki/StranglerFigApplication.html).
-8. [AWS: cell-based architecture](https://docs.aws.amazon.com/wellarchitected/latest/reducing-scope-of-impact-with-cell-based-architecture/what-is-a-cell-based-architecture.html).
-
-September 2026 · Architecture proposal · Examples are illustrative.
+September 2026 · Examples are illustrative.

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#101211">
 <title>From microservices to microcells</title>
-<meta name="description" content="A concise old-vs-new architecture comparison: versioned tasks, durable workflows, explicit state authority, safe external effects, and a five-step migration.">
+<meta name="description" content="Microservices and microcells explained simply: Kubernetes, sandboxes, the runner inside each cell, files, networking, saved progress, and a safe migration.">
 <meta property="og:title" content="From microservices to microcells">
 <meta property="og:description" content="A concise architecture proposal for the durable-execution era. What changes, what stays, and how to migrate.">
 <meta property="og:type" content="article">
@@ -19,40 +19,40 @@
 <a class="skip-link" href="#comparison">Skip to the comparison</a>
 <header class="site-header">
 <a class="wordmark" href="#top" aria-label="Microcells, back to top"><svg width="24" height="24" viewBox="0 0 26 26" aria-hidden="true"><rect x="1" y="1" width="9" height="9" rx="2"/><rect x="16" y="1" width="9" height="9" rx="2"/><rect x="1" y="16" width="9" height="9" rx="2"/><rect x="16" y="16" width="9" height="9" rx="2"/></svg>microcells<span class="wordmark-dot">.</span></a>
-<nav aria-label="Main navigation"><a href="#comparison">Old vs new</a><a href="#architecture">Architecture</a><a href="#migration">Migration</a></nav>
+<nav aria-label="Main navigation"><a href="#comparison">Old vs new</a><a href="#kubernetes">Kubernetes</a><a href="#migration">Migration</a></nav>
 <a class="github-link" href="https://github.com/zozo123/microservices-to-microcells">GitHub <span aria-hidden="true">↗</span></a>
 </header>
 <main id="top">
 <section class="compact-hero" aria-labelledby="page-title">
 <div class="compact-eyebrow"><span class="status-dot"></span> SOFTWARE ARCHITECTURE / A PROPOSAL <span>{{READ_TIME}} MIN READ</span></div>
 <h1 id="page-title">From microservices<br><span>to microcells.</span></h1>
-<p>Ship versioned tasks. Coordinate them durably.<br>Keep state ownership and external effects explicit.</p>
+<p>Run a task when it is needed.<br>Save its progress so work can survive a crash.</p>
 </section>
 <section class="compare-diagrams" aria-label="Old versus new architecture">
 <div class="compare-shell"><figure class="compare-panel old-model">
-<figcaption><span class="mono">01 / MICROSERVICES</span><strong>Operate domain services.</strong></figcaption>
+<figcaption><span class="mono">01 / MICROSERVICES</span><strong>Keep services running.</strong></figcaption>
 <div class="entry-node">Request <span aria-hidden="true">↓</span></div>
-<div class="service-network"><div class="service-node"><strong>Orders</strong><span>service + replicas</span></div><span class="network-arrow" aria-hidden="true">↔</span><div class="service-node"><strong>Risk</strong><span>service + replicas</span></div><span class="vertical-arrow" aria-hidden="true">↕</span><span></span><span class="vertical-arrow" aria-hidden="true">↕</span><div class="service-node"><strong>Payments</strong><span>service + replicas</span></div><span class="network-arrow" aria-hidden="true">↔</span><div class="service-node"><strong>Notify</strong><span>service + replicas</span></div></div>
-<div class="model-caption">API calls · events · service-owned coordination</div>
-<div class="model-store">Domain-owned stores <span>↓</span> External providers</div>
-<p class="model-note">Each service carries its own runtime boundary.</p>
+<div class="service-network"><div class="service-node"><strong>Orders</strong><span>running program</span></div><span class="network-arrow" aria-hidden="true">↔</span><div class="service-node"><strong>Risk</strong><span>running program</span></div><span class="vertical-arrow" aria-hidden="true">↕</span><span></span><span class="vertical-arrow" aria-hidden="true">↕</span><div class="service-node"><strong>Payments</strong><span>running program</span></div><span class="network-arrow" aria-hidden="true">↔</span><div class="service-node"><strong>Notifications</strong><span>running program</span></div></div>
+<div class="model-caption">Services call and send messages to each other</div>
+<div class="model-store">Team-owned data <span>·</span> External connections</div>
+<p class="model-note">Teams deploy and operate their own services.</p>
 </figure></div>
 <div class="compare-shell"><figure class="compare-panel new-model">
-<figcaption><span class="mono">02 / MICROCELLS</span><strong>Publish domain behavior.</strong></figcaption>
+<figcaption><span class="mono">02 / MICROCELLS</span><strong>Run tasks when needed.</strong></figcaption>
 <div class="entry-node">Request <span aria-hidden="true">↓</span></div>
-<div class="durable-node"><strong>Durable workflow</strong><span>Pinned versions · recorded progress</span></div>
+<div class="durable-node"><strong>Saved workflow</strong><span>Steps + versions + progress</span></div>
 <div class="tasks-arrow" aria-hidden="true">↓</div>
-<div class="task-network"><div><span>Read</span><small>facts</small></div><span aria-hidden="true">→</span><div><span>Decide</span><small>logic</small></div><span aria-hidden="true">→</span><div><span>Propose</span><small>delta</small></div></div>
-<div class="model-caption">One bounded attempt · shared workers</div>
-<div class="model-store">Owned state + atomic intent <span>↓</span> Outbox → broker → provider</div>
-<p class="model-note">Compute ends. Progress and effect records remain.</p>
+<div class="task-network"><div><span>Read</span><small>input</small></div><span aria-hidden="true">→</span><div><span>Run</span><small>task code</small></div><span aria-hidden="true">→</span><div><span>Propose</span><small>change</small></div></div>
+<div class="model-caption">One isolated task attempt on a shared worker</div>
+<div class="model-store">Save data + next action <span>↓</span> Adapter → provider</div>
+<p class="model-note">The task ends. Saved progress and results remain.</p>
 </figure></div>
 </section>
-<div class="compare-boundary"><span class="mono">SAME OBLIGATION</span><p>Correct state. Explicit ownership. Recoverable effects.<br><span>Microservices can use durable workflows too. Microcells make them the default contract.</span></p></div>
+<div class="compare-boundary"><span class="mono">STILL REQUIRED</span><p>Keep data correct. Know who can change it. Recover unfinished work.<br><span>The shared platform still needs scaling, monitoring, and recovery.</span></p></div>
 <nav class="section-nav" aria-label="Article sections">{{TOC}}</nav>
 <article class="article compact-article">{{ARTICLE}}</article>
-<div class="compact-end"><p>Less domain runtime machinery.<br><span>The same responsibility for correctness.</span></p><a href="essay.md" download>Download the concise writeup <span aria-hidden="true">↓</span></a></div>
+<div class="compact-end"><p>Run the task. Save the result.<br><span>Keep enough history to recover.</span></p><a href="essay.md" download>Download the concise writeup <span aria-hidden="true">↓</span></a></div>
 </main>
-<footer class="site-footer"><span>Architecture proposal · September 2026</span><a href="#sources">8 primary sources</a><a href="https://github.com/zozo123/microservices-to-microcells">Source on GitHub <span aria-hidden="true">↗</span></a></footer>
+<footer class="site-footer"><span>Architecture proposal · September 2026</span><a href="#sources">Primary sources</a><a href="https://github.com/zozo123/microservices-to-microcells">Source on GitHub <span aria-hidden="true">↗</span></a></footer>
 </body>
 </html>

@@ -8,8 +8,8 @@ import markdown
 ROOT = Path(__file__).resolve().parents[1]
 source = (ROOT / "essay.md").read_text()
 sections = re.split(r"^## ", source, flags=re.M)[1:]
-ids = ["comparison", "architecture", "refund", "guarantees", "migration", "fit", "sources"]
-labels = ["Old vs new", "Execution", "Refund", "Guarantees", "Migration", "Fit", "Sources"]
+ids = ["comparison", "kubernetes", "inside-cell", "refund", "guarantees", "migration", "sources"]
+labels = ["Old vs new", "Kubernetes", "Inside a cell", "A refund", "Guarantees", "Migration", "Sources"]
 assert len(sections) == len(ids), "Update section mapping when changing the article structure."
 article, toc = [], []
 for i, (section, anchor, label) in enumerate(zip(sections, ids, labels)):
@@ -25,8 +25,10 @@ for i, (section, anchor, label) in enumerate(zip(sections, ids, labels)):
     rendered = re.sub(r"<table>", '<div class="table-wrap" role="region" tabindex="0" aria-label="'+html.escape(label)+' table"><table>', rendered).replace("</table>", "</table></div>")
     clean_title = re.sub(r"^\d+ — ", "", title)
     num = f'<span class="section-number">{i+1:02d}</span>' if anchor != 'sources' else ''
+    if anchor == 'kubernetes':
+        rendered += (ROOT / 'runtime.html').read_text()
     if anchor == 'refund':
-        rendered += '<details class="demo-details"><summary>Explore four failure scenarios</summary>' + (ROOT / "walkthrough.html").read_text() + '</details>'
+        rendered += '<details class="demo-details"><summary>Try the refund failure scenarios</summary>' + (ROOT / 'walkthrough.html').read_text() + '</details>'
     article.append(f'<section class="article-section" id="{anchor}">{num}<h2>{html.escape(clean_title)}</h2>{rendered}</section>')
     toc.append(f'<a href="#{anchor}"><span>{i:02d}</span>{label}</a>')
 page = (ROOT / "layout.html").read_text().replace("{{ARTICLE}}", "\n".join(article)).replace("{{TOC}}", "\n".join(toc)).replace("{{READ_TIME}}", str(math.ceil(len(source.split()) / 230)))
