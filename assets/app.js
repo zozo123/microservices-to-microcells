@@ -82,7 +82,7 @@ if (typeof document !== 'undefined') {
     render();
   }
   if ('IntersectionObserver' in window) {
-    const sectionLinks = [...document.querySelectorAll('.contents nav a')];
+    const sectionLinks = [...document.querySelectorAll('.section-nav a')];
     const visible = new Set();
     const observer = new IntersectionObserver(entries => {
       entries.forEach(entry => entry.isIntersecting ? visible.add(entry.target.id) : visible.delete(entry.target.id));

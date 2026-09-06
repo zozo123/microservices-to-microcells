@@ -8,14 +8,12 @@ import markdown
 ROOT = Path(__file__).resolve().parents[1]
 source = (ROOT / "essay.md").read_text()
 sections = re.split(r"^## ", source, flags=re.M)[1:]
-ids = ["introduction", "deployment-unit", "objects", "architecture", "correctness", "refund", "durability", "releases", "failures", "migration", "operations", "fit", "sources"]
-labels = ["The proposal", "The deployment unit", "Seven objects", "Eight responsibilities", "The commit boundary", "The refund journey", "Durable execution", "Versioned releases", "Failure paths", "The migration", "Operating the platform", "Where it fits", "Sources & boundaries"]
+ids = ["comparison", "architecture", "refund", "guarantees", "migration", "fit", "sources"]
+labels = ["Old vs new", "Execution", "Refund", "Guarantees", "Migration", "Fit", "Sources"]
 assert len(sections) == len(ids), "Update section mapping when changing the article structure."
 article, toc = [], []
 for i, (section, anchor, label) in enumerate(zip(sections, ids, labels)):
     title, body = section.split("\n", 1)
-    if anchor == "refund":
-        article.append((ROOT / "walkthrough.html").read_text())
     rendered = markdown.markdown(body, extensions=["tables", "fenced_code"])
     rendered = re.sub(r"\[(\d+)\]", lambda m: f'<a class="citation" href="#source-{m[1]}" aria-label="Source {m[1]}">[{m[1]}]</a>', rendered)
     if anchor == "sources":
@@ -26,7 +24,9 @@ for i, (section, anchor, label) in enumerate(zip(sections, ids, labels)):
         rendered = re.sub(r"<li>", source_id, rendered)
     rendered = re.sub(r"<table>", '<div class="table-wrap" role="region" tabindex="0" aria-label="'+html.escape(label)+' table"><table>', rendered).replace("</table>", "</table></div>")
     clean_title = re.sub(r"^\d+ — ", "", title)
-    num = f'<span class="section-number">{i:02d}</span>' if 0 < i < 12 else ''
+    num = f'<span class="section-number">{i+1:02d}</span>' if anchor != 'sources' else ''
+    if anchor == 'refund':
+        rendered += '<details class="demo-details"><summary>Explore four failure scenarios</summary>' + (ROOT / "walkthrough.html").read_text() + '</details>'
     article.append(f'<section class="article-section" id="{anchor}">{num}<h2>{html.escape(clean_title)}</h2>{rendered}</section>')
     toc.append(f'<a href="#{anchor}"><span>{i:02d}</span>{label}</a>')
 page = (ROOT / "layout.html").read_text().replace("{{ARTICLE}}", "\n".join(article)).replace("{{TOC}}", "\n".join(toc)).replace("{{READ_TIME}}", str(math.ceil(len(source.split()) / 230)))
