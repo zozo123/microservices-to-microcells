@@ -1,6 +1,6 @@
 # From microservices to microcells
 
-**A plain-language architecture proposal.**
+**A plain-language architecture proposal by [Yossi Eliaz](https://zozo123.github.io/), September 2026.**
 
 [Read the website](https://zozo123.github.io/microservices-to-microcells/) · [Read the full essay](essay.md)
 
@@ -34,4 +34,4 @@ Open `http://localhost:8765/`. Commit the rebuilt `index.html` with its source c
 
 ## Sources and fonts
 
-Primary references are linked in the essay and the website. DM Sans and Space Grotesk are bundled under the SIL Open Font License; their license files are in `assets/`.
+Primary references are linked in the essay and the website. DM Sans and Space Grotesk are bundled under the SIL Open Font License; their license files are in `assets/`. The share card `assets/og.png` (1200×630) is rendered from `assets/og.svg` with those fonts.

@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <title>From microservices to microcells: an architecture proposal by Yossi Eliaz</title>
+  <rect width="1200" height="630" fill="#101211"/>
+  <rect x="32" y="32" width="1136" height="566" rx="32" fill="#141815" stroke="#daedd7" stroke-opacity="0.12" stroke-width="2"/>
+
+  <g transform="translate(88 82)" fill="#c8f883">
+    <rect x="0" y="0" width="13" height="13" rx="3"/>
+    <rect x="20" y="0" width="13" height="13" rx="3"/>
+    <rect x="0" y="20" width="13" height="13" rx="3"/>
+    <rect x="20" y="20" width="13" height="13" rx="3"/>
+  </g>
+  <text x="136" y="110" font-family="DM Sans" font-size="31" fill="#f0f2ed">microcells<tspan fill="#c8f883">.</tspan></text>
+
+  <circle cx="835" cy="98" r="6" fill="#c8f883"/>
+  <circle cx="835" cy="98" r="12" fill="#c8f883" fill-opacity="0.1"/>
+  <text x="1112" y="104" text-anchor="end" font-family="Menlo" font-size="17" letter-spacing="2" fill="#a7b99b">SOFTWARE ARCHITECTURE</text>
+
+  <text x="82" y="268" font-family="Space Grotesk" font-size="104" letter-spacing="-6" fill="#f0f2ed">From microservices</text>
+  <text x="82" y="380" font-family="Space Grotesk" font-size="104" letter-spacing="-6" fill="#c8f883">to microcells.</text>
+
+  <text x="88" y="450" font-family="DM Sans" font-size="27" fill="#b1beaa">Run a task when it is needed. Save its progress so work can survive a crash.</text>
+
+  <line x1="88" y1="494" x2="1112" y2="494" stroke="#daedd7" stroke-opacity="0.12" stroke-width="2"/>
+
+  <text x="88" y="545" font-family="DM Sans" font-weight="700" font-size="30" fill="#f0f2ed">Yossi Eliaz</text>
+  <text x="88" y="574" font-family="Menlo" font-size="15" letter-spacing="1.5" fill="#97a58e">ARCHITECTURE PROPOSAL · SEPTEMBER 2026</text>
+
+  <g font-family="DM Sans" font-size="19" fill="#c4e2ae" text-anchor="middle">
+    <rect x="768" y="522" width="96" height="48" rx="10" fill="#26331d" stroke="#c8f883" stroke-opacity="0.25" stroke-width="1.5"/>
+    <text x="816" y="553">Read</text>
+    <text x="878" y="553" fill="#748f58">→</text>
+    <rect x="892" y="522" width="96" height="48" rx="10" fill="#26331d" stroke="#c8f883" stroke-opacity="0.25" stroke-width="1.5"/>
+    <text x="940" y="553">Run</text>
+    <text x="1002" y="553" fill="#748f58">→</text>
+    <rect x="1016" y="522" width="96" height="48" rx="10" fill="#26331d" stroke="#c8f883" stroke-opacity="0.25" stroke-width="1.5"/>
+    <text x="1064" y="553">Propose</text>
+  </g>
+</svg>

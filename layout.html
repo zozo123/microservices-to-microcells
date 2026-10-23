@@ -4,13 +4,24 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#101211">
-<title>From microservices to microcells</title>
+<title>From microservices to microcells · Yossi Eliaz</title>
 <meta name="description" content="Microservices and microcells explained simply: Kubernetes, sandboxes, the runner inside each cell, files, networking, saved progress, and a safe migration.">
 <meta property="og:title" content="From microservices to microcells">
 <meta property="og:description" content="A concise architecture proposal for the durable-execution era. What changes, what stays, and how to migrate.">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://zozo123.github.io/microservices-to-microcells/">
+<meta property="og:image" content="https://zozo123.github.io/microservices-to-microcells/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="From microservices to microcells: an architecture proposal by Yossi Eliaz">
+<meta property="article:published_time" content="2026-09-06">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="From microservices to microcells">
+<meta name="twitter:description" content="A concise architecture proposal for the durable-execution era. What changes, what stays, and how to migrate.">
+<meta name="twitter:image" content="https://zozo123.github.io/microservices-to-microcells/assets/og.png">
+<meta name="author" content="Yossi Eliaz">
 <link rel="canonical" href="https://zozo123.github.io/microservices-to-microcells/">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":"From microservices to microcells","description":"An architecture proposal: run multi-step write paths as bounded, isolated tasks under a durable workflow, with a five-stage migration from microservices.","url":"https://zozo123.github.io/microservices-to-microcells/","mainEntityOfPage":"https://zozo123.github.io/microservices-to-microcells/","image":"https://zozo123.github.io/microservices-to-microcells/assets/og.png","datePublished":"2026-09-06","inLanguage":"en","author":{"@type":"Person","name":"Yossi Eliaz","url":"https://yossieliaz.netlify.app/","sameAs":["https://github.com/zozo123","https://www.linkedin.com/in/yossi-eliaz/"]}}</script>
 <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 <link rel="stylesheet" href="assets/style.css">
 <script src="assets/app.js" defer></script>
@@ -24,9 +35,10 @@
 </header>
 <main id="top">
 <section class="compact-hero" aria-labelledby="page-title">
-<div class="compact-eyebrow"><span class="status-dot"></span> SOFTWARE ARCHITECTURE / A PROPOSAL <span>{{READ_TIME}} MIN READ</span></div>
+<div class="compact-eyebrow"><span class="status-dot"></span><span class="eyebrow-text">SOFTWARE ARCHITECTURE / A PROPOSAL BY <a href="https://zozo123.github.io/">Yossi Eliaz</a></span><span>{{READ_TIME}} MIN READ</span></div>
 <h1 id="page-title">From microservices<br><span>to microcells.</span></h1>
-<p>Run a task when it is needed.<br>Save its progress so work can survive a crash.</p>
+<p>Run a task when it is needed. <br>Save its progress so work can survive a crash.</p>
+<p class="hero-summary">A microcell, in this proposal by Yossi Eliaz, is one isolated run of one task: a shared workflow coordinator starts it, saves its result, and decides what happens next. The essay compares this with microservices, shows where Kubernetes and sandboxes fit, and gives a five-stage migration. It is a proposal, not a reference implementation.</p>
 </section>
 <section class="compare-diagrams" aria-label="Old versus new architecture">
 <div class="compare-shell"><figure class="compare-panel old-model">
@@ -53,6 +65,6 @@
 <article class="article compact-article">{{ARTICLE}}</article>
 <div class="compact-end"><p>Run the task. Save the result.<br><span>Keep enough history to recover.</span></p><a href="essay.md" download>Download the concise writeup <span aria-hidden="true">↓</span></a></div>
 </main>
-<footer class="site-footer"><span>Architecture proposal · September 2026</span><a href="#sources">Primary sources</a><a href="https://github.com/zozo123/microservices-to-microcells">Source on GitHub <span aria-hidden="true">↗</span></a></footer>
+<footer class="site-footer"><span>Architecture proposal by <a href="https://zozo123.github.io/">Yossi Eliaz</a> · September 2026</span><a href="#sources">Primary sources</a><a href="https://github.com/zozo123/microservices-to-microcells">Source on GitHub <span aria-hidden="true">↗</span></a></footer>
 </body>
 </html>
